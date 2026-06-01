@@ -314,6 +314,34 @@ async function loadAll(){
 }
 // 단독 공휴일 (해당 날 자체가 토/일이면 대체공휴일 발생)
 // 단독 공휴일: 토/일 겹치거나 다른 공휴일과 겹치면 대체공휴일
+
+// 설날/추석 당일 양력 날짜 (2026~2033)
+const SEOLLAL={
+  2026:[2,17],2027:[2,6],2028:[1,26],2029:[2,13],
+  2030:[2,3],2031:[1,23],2032:[2,11],2033:[1,31]
+};
+const CHUSEOK={
+  2026:[9,25],2027:[10,4],2028:[9,22],2029:[10,11],
+  2030:[9,30],2031:[9,19],2032:[10,7],2033:[9,26]
+};
+// DB에 없으면 코드 데이터로 보완
+function getLunarHolidays(){
+  const result=[];
+  Object.entries(SEOLLAL).forEach(([y,[m,d]])=>{
+    const base=new Date(parseInt(y),m-1,d);
+    const prev=new Date(base);prev.setDate(prev.getDate()-1);
+    const next=new Date(base);next.setDate(next.getDate()+1);
+    result.push([fmt(prev),'설날 전날'],[fmt(base),'설날'],[fmt(next),'설날 다음날']);
+  });
+  Object.entries(CHUSEOK).forEach(([y,[m,d]])=>{
+    const base=new Date(parseInt(y),m-1,d);
+    const prev=new Date(base);prev.setDate(prev.getDate()-1);
+    const next=new Date(base);next.setDate(next.getDate()+1);
+    result.push([fmt(prev),'추석 전날'],[fmt(base),'추석'],[fmt(next),'추석 다음날']);
+  });
+  return result;
+}
+
 const SUB_SINGLE=new Set(['삼일절','광복절','개천절','한글날','어린이날','부처님오신날','신정','제헌절','노동절']);
 // 설날/추석 당일: 토/일 겹치면 대체공휴일
 const SUB_HOLIDAY=new Set(['설날','추석']);
@@ -322,7 +350,13 @@ let _subHolCache=null;
 function getSubHolidays(){
   if(_subHolCache) return _subHolCache;
   // [date, name] 배열로 변환 (같은 날 여러 공휴일 허용)
-  const baseList=ST.holidays.filter(h=>h.type==='regular').map(h=>[h.date,h.name]);
+  // DB + 코드 내장 음력 데이터 병합
+  const dbList=ST.holidays.filter(h=>h.type==='regular').map(h=>[h.date,h.name]);
+  const lunarList=getLunarHolidays();
+  // DB에 없는 날만 코드 데이터로 보완
+  const dbDates=new Set(dbList.map(([ds])=>ds));
+  const extraLunar=lunarList.filter(([ds])=>!dbDates.has(ds));
+  const baseList=[...dbList,...extraLunar];
   const allDates=new Set(baseList.map(([ds])=>ds));
   const result={};
 
@@ -366,8 +400,10 @@ function getHol(ds){return ST.holidays.find(h=>h.date===ds)||null;}
 function isHoliday(ds){
   const h=getHol(ds);
   if(h&&h.type==='regular') return true;
-  // 대체공휴일 자동 판단
   if(getSubHolidays()[ds]) return true;
+  // 코드 내장 음력 데이터로도 확인
+  const lunarDates=new Set(getLunarHolidays().map(([d])=>d));
+  if(lunarDates.has(ds)) return true;
   return false;
 }
 function isTempHol(ds){
@@ -384,6 +420,9 @@ function getHolName(ds){
   const sub=getSubHolidays()[ds];
   if(sub) return sub;
   if(isAnniversary(ds)) return '창립기념일';
+  // 코드 내장 음력
+  const lunarEntry=getLunarHolidays().find(([d])=>d===ds);
+  if(lunarEntry) return lunarEntry[1];
   return null;
 }
 function fmt(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
@@ -392,30 +431,46 @@ function nextDs(ds){const d=new Date(ds+'T00:00:00');d.setDate(d.getDate()+1);re
 function getWFDays(y,m){const fris=[],d=new Date(y,m-1,1);while(d.getMonth()===m-1){if(d.getDay()===5)fris.push(fmt(d));d.setDate(d.getDate()+1);}return[fris[1],fris[3]].filter(Boolean);}
 function getDtype(ds){
   const d=new Date(ds+'T00:00:00'),dow=d.getDay();
-  if(dow===6)return null;
-  // 토요일인 법정공휴일은 당직 없음 (대체공휴일은 별도 평일에 생성됨)
-  if(isTempHol(ds))return 6;
-  // 창립기념일(9/23): 다음날 기준으로 유형 결정
-  if(isAnniversary(ds)&&dow!==5&&dow!==6){return isOff(nextDs(ds))?'1b':'1a';}
-  if(dow===0||isHoliday(ds)){
-    const nd=nextDs(ds);
-    // 다음날이 토요일(무조건 쉬는날)이면 가판만 → 임시공휴일 순번(6번)
-    const ndDow=new Date(nd+'T00:00:00').getDay();
-    if(ndDow===6) return 6;
-    // 다음날도 쉬는날이면 가판만(1b)
-    return isOff(nd)?'1b':'1a';
+  const nd=nextDs(ds),ndDow=new Date(nd+'T00:00:00').getDay();
+
+  // 토요일: 당직 없음
+  if(dow===6) return null;
+
+  // 임시공휴일/회사자체휴일: 다음날 기준
+  if(isTempHol(ds)){
+    // 다음날이 쉬는날이면 6번, 평일이면 1a
+    return isOff(nd)?6:'1a';
   }
-  // WF 전날 목요일 (단, 다음날이 공휴일이면 WF Day 아니므로 그냥 평일)
+
+  // 창립기념일(9/23): 다음날 기준
+  if(isAnniversary(ds)){
+    return isOff(nd)?6:'1a';
+  }
+
+  // 일요일 or 법정공휴일
+  if(dow===0||isHoliday(ds)){
+    // 다음날이 쉬는날(토/일/공휴/임시공휴)이면 → 6번(대체/금공휴)
+    return isOff(nd)?6:'1a';
+  }
+
+  // WF 전날 목요일 (단, 다음날 WF가 공휴일이면 그냥 평일)
   if(dow===4){
-    const nd=nextDs(ds);
     const ndd=new Date(nd+'T00:00:00');
     const wfs=getWFDays(ndd.getFullYear(),ndd.getMonth()+1);
-    if(wfs.includes(nd)&&!isOff(nd))return 2;
+    if(wfs.includes(nd)&&!isOff(nd)) return 2;
   }
-  // WF 당일 (공휴일이면 WF Day 아님 → 금요일로 처리)
+
+  // WF 당일 (공휴일이면 WF Day 아님 → 금요일)
   const wfs=getWFDays(d.getFullYear(),d.getMonth()+1);
-  if(wfs.includes(ds)&&!isOff(ds))return 3;
-  if(dow===5)return 4;
+  if(wfs.includes(ds)&&!isOff(ds)) return 3;
+
+  // 금요일: 다음날이 토요일이므로 → 6번(대체/금공휴)
+  if(dow===5) return 6;
+
+  // 평일(월~목): 다음날이 쉬는날이면 → 6번(가판만)
+  // (예: 수요일인데 다음날 창립기념일/임시공휴일)
+  if(isOff(nd)) return 6;
+
   return 5;
 }
 function isAbsent(name,ds){return ST.absences.some(a=>a.member===name&&ds>=a.start&&ds<=a.end);}
@@ -472,69 +527,57 @@ function buildSchedule(y,m){
   return extended.filter(s=>s.year===y&&s.month===m);
 }
 function autoSwap(result){
-  // 교체 불가 유형 (자체를 교체하지 않음)
-  // 1a/1b(일반공휴일), 6번(임시/대체공휴일): 교체 대상 제외, 연속 표시는 함
   const NO_SWAP_SELF=new Set(['1a','1b',6]);
   function ik(dt){return typeof dt==='string'?1:dt;}
   function canSwap(dtype){return!NO_SWAP_SELF.has(dtype);}
+  function isTue(ds){return new Date(ds+'T00:00:00').getDay()===2;}
 
-  // ── 신민경 화요일 당직 자동 교체 (연속 여부 무관) ──
+  function trySwap(a,b,result){
+    // a와 b를 스왑해도 연속당직/화요일 문제 없는지 확인 후 스왑
+    if(a.isOvr||b.isOvr) return false;
+    if(!canSwap(a.dtype)||!canSwap(b.dtype)) return false;
+    if(ik(a.dtype)!==ik(b.dtype)) return false;
+    // 신민경이면 화요일 자리로 보내지 않음
+    if(a.member==='신민경'&&isTue(b.date)) return false;
+    if(b.member==='신민경'&&isTue(a.date)) return false;
+    const ai=result.indexOf(a),bi=result.indexOf(b);
+    // a 자리에 b.member, b 자리에 a.member 넣었을 때 앞뒤 연속 체크
+    const ap=ai>0?result[ai-1]:null,an=ai+1<result.length&&ai+1!==bi?result[ai+1]:null;
+    const bp=bi>0?result[bi-1]:null,bn=bi+1<result.length&&bi+1!==ai?result[bi+1]:null;
+    const d=ds=>new Date(ds+'T00:00:00');
+    const ok1=!ap||(d(a.date)-d(ap.date))/86400000>1||ap.member!==b.member;
+    const ok2=!an||(d(an.date)-d(a.date))/86400000>1||an.member!==b.member;
+    const ok3=!bp||(d(b.date)-d(bp.date))/86400000>1||bp.member!==a.member;
+    const ok4=!bn||(d(bn.date)-d(b.date))/86400000>1||bn.member!==a.member;
+    if(ok1&&ok2&&ok3&&ok4){
+      const t=a.member;a.member=b.member;b.member=t;
+      a.autoSwapped=true;a.swapWith=b.date;
+      b.autoSwapped=true;b.swapWith=a.date;
+      return true;
+    }
+    return false;
+  }
+
+  // ── 신민경 화요일 자동교체 ──
   for(let i=0;i<result.length;i++){
     const s=result[i];
-    if(s.member!=='신민경') continue;
-    if(s.isOvr) continue;
-    if(!canSwap(s.dtype)) continue;
-    const d=new Date(s.date+'T00:00:00');
-    if(d.getDay()!==2) continue; // 화요일(2)만
-    // 인접 같은 유형에서 교체 대상 탐색
+    if(s.member!=='신민경'||s.isOvr||!canSwap(s.dtype)||!isTue(s.date)) continue;
     const sKey=ik(s.dtype);
-    let swapped=false;
-    // 앞쪽 탐색
-    for(let j=i-1;j>=Math.max(0,i-14)&&!swapped;j--){
+    // 앞쪽 가장 인접한 것부터
+    let done=false;
+    for(let j=i-1;j>=Math.max(0,i-14)&&!done;j--){
       const pv=result[j];
-      if(pv.isOvr||!canSwap(pv.dtype)||ik(pv.dtype)!==sKey||pv.member==='신민경') continue;
-      // pv 위치에 신민경 넣었을 때 화요일인지 확인 (화요일이면 교체 의미없음)
-      const pvD=new Date(pv.date+'T00:00:00');
-      if(pvD.getDay()===2) continue;
-      // 연속당직 발생 안하는지 확인
-      const ppv=j>0?result[j-1]:null,npv=j+1<result.length&&j+1!==i?result[j+1]:null;
-      const ok1=!ppv||(new Date(pv.date)-new Date(ppv.date))/86400000>1||ppv.member!=='신민경';
-      const ok2=!npv||(new Date(npv.date)-new Date(pv.date))/86400000>1||npv.member!==pv.member;
-      // s 자리에 pv.member 넣었을 때 앞뒤 연속 없는지
-      const sp=i>0?result[i-1]:null,sn=i+1<result.length?result[i+1]:null;
-      const ok3=!sp||(new Date(s.date)-new Date(sp.date))/86400000>1||sp.member!==pv.member;
-      const ok4=!sn||(new Date(sn.date)-new Date(s.date))/86400000>1||sn.member!==pv.member;
-      if(ok1&&ok2&&ok3&&ok4){
-        const t=s.member;s.member=pv.member;pv.member=t;
-        s.autoSwapped=true;s.swapWith=pv.date;
-        pv.autoSwapped=true;pv.swapWith=s.date;
-        swapped=true;
-      }
+      if(ik(pv.dtype)===sKey&&!isTue(pv.date)) done=trySwap(s,pv,result);
     }
-    // 앞쪽 실패시 뒤쪽 탐색
-    if(!swapped){
-      for(let j=i+1;j<Math.min(i+14,result.length)&&!swapped;j++){
+    if(!done){
+      for(let j=i+1;j<Math.min(i+14,result.length)&&!done;j++){
         const nx=result[j];
-        if(nx.isOvr||!canSwap(nx.dtype)||ik(nx.dtype)!==sKey||nx.member==='신민경') continue;
-        const nxD=new Date(nx.date+'T00:00:00');
-        if(nxD.getDay()===2) continue;
-        const pnx=result[j-1],nnx=j+1<result.length?result[j+1]:null;
-        const ok1=!pnx||(new Date(nx.date)-new Date(pnx.date))/86400000>1||pnx.member!=='신민경';
-        const ok2=!nnx||(new Date(nnx.date)-new Date(nx.date))/86400000>1||nnx.member!==nx.member;
-        const sp=i>0?result[i-1]:null,sn=i+1<result.length&&i+1!==j?result[i+1]:null;
-        const ok3=!sp||(new Date(s.date)-new Date(sp.date))/86400000>1||sp.member!==nx.member;
-        const ok4=!sn||(new Date(sn.date)-new Date(s.date))/86400000>1||sn.member!==nx.member;
-        if(ok1&&ok2&&ok3&&ok4){
-          const t=s.member;s.member=nx.member;nx.member=t;
-          s.autoSwapped=true;s.swapWith=nx.date;
-          nx.autoSwapped=true;nx.swapWith=s.date;
-          swapped=true;
-        }
+        if(ik(nx.dtype)===sKey&&!isTue(nx.date)) done=trySwap(s,nx,result);
       }
     }
   }
 
-  // ── 연속당직 자동 교체 ──
+  // ── 연속당직 자동교체 (3패스) ──
   for(let pass=0;pass<3;pass++){
     result.forEach(s=>{s.consec=false;});
     for(let i=1;i<result.length;i++){
@@ -549,45 +592,16 @@ function autoSwap(result){
       if(!canSwap(p.dtype)&&!canSwap(c.dtype)) continue;
       const pKey=ik(p.dtype),cKey=ik(c.dtype);
       let swapped=false;
-      // 우선순위1: 앞날짜(p) 교체
+      // 우선순위1: 앞날짜(p)를 앞쪽 인접 같은 유형과 교체
       if(canSwap(p.dtype)){
         for(let j=i-2;j>=Math.max(0,i-14)&&!swapped;j--){
-          const pv=result[j];
-          if(pv.isOvr||!canSwap(pv.dtype)||ik(pv.dtype)!==pKey||pv.member===p.member) continue;
-          // 신민경이면 화요일 자리로 보내지 않음
-          const pvD=new Date(pv.date+'T00:00:00');
-          if(p.member==='신민경'&&pvD.getDay()===2) continue;
-          if(pv.member==='신민경'&&new Date(p.date+'T00:00:00').getDay()===2) continue;
-          const ppv=j>0?result[j-1]:null,npv=j+1<result.length&&j+1!==i-1?result[j+1]:null;
-          const ok1=!ppv||(new Date(pv.date)-new Date(ppv.date))/86400000>1||ppv.member!==p.member;
-          const ok2=!npv||(new Date(npv.date)-new Date(pv.date))/86400000>1||npv.member!==pv.member;
-          const ok3=(new Date(c.date)-new Date(p.date))/86400000>1||c.member!==pv.member;
-          if(ok1&&ok2&&ok3){
-            const t=p.member;p.member=pv.member;pv.member=t;
-            p.autoSwapped=true;p.swapWith=pv.date;
-            pv.autoSwapped=true;pv.swapWith=p.date;
-            changed=true;swapped=true;
-          }
+          if(trySwap(p,result[j],result)){changed=true;swapped=true;}
         }
       }
-      // 우선순위2: 뒤날짜(c) 교체
+      // 우선순위2: 뒤날짜(c)를 뒤쪽 인접 같은 유형과 교체
       if(!swapped&&canSwap(c.dtype)){
         for(let j=i+1;j<Math.min(i+14,result.length)&&!swapped;j++){
-          const nx=result[j];
-          if(nx.isOvr||!canSwap(nx.dtype)||ik(nx.dtype)!==cKey||nx.member===c.member) continue;
-          const nxD=new Date(nx.date+'T00:00:00');
-          if(c.member==='신민경'&&nxD.getDay()===2) continue;
-          if(nx.member==='신민경'&&new Date(c.date+'T00:00:00').getDay()===2) continue;
-          const pnx=result[j-1],nnx=j+1<result.length?result[j+1]:null;
-          const ok1=!pnx||(new Date(nx.date)-new Date(pnx.date))/86400000>1||pnx.member!==c.member;
-          const ok2=!nnx||(new Date(nnx.date)-new Date(nx.date))/86400000>1||nnx.member!==nx.member;
-          const ok3=(new Date(c.date)-new Date(result[i-1].date))/86400000>1||result[i-1].member!==nx.member;
-          if(ok1&&ok2&&ok3){
-            const t=c.member;c.member=nx.member;nx.member=t;
-            c.autoSwapped=true;c.swapWith=nx.date;
-            nx.autoSwapped=true;nx.swapWith=c.date;
-            changed=true;swapped=true;
-          }
+          if(trySwap(c,result[j],result)){changed=true;swapped=true;}
         }
       }
     }
