@@ -80,7 +80,7 @@ body{font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;ba
 .swap-month-label{font-size:13px;font-weight:600;min-width:80px;text-align:center;}
 .cal-mini{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:8px;}
 .cal-mini-dh{font-size:8px;text-align:center;color:var(--text3);font-weight:600;padding:2px 0;}
-.cal-mini-dc{font-size:8px;text-align:center;padding:4px 2px;border-radius:3px;cursor:pointer;border:1px solid transparent;transition:all .1s;}
+.cal-mini-dc{font-size:8px;text-align:center;padding:3px 2px;border-radius:3px;cursor:pointer;border:1px solid transparent;transition:all .1s;min-height:32px;}
 .cal-mini-dc.has{background:var(--blue-bg);color:var(--blue);font-weight:600;border-color:var(--blue-bd);}
 .cal-mini-dc.has:hover{background:var(--blue);color:#fff;}
 .cal-mini-dc.sel{background:var(--blue);color:#fff;border-color:var(--blue);}
@@ -284,7 +284,13 @@ const BASE=['이홍연','유시화','조현우','최승훈','신동석','신민�
 function shift(arr,n){return[...arr.slice(n),...arr.slice(0,n)];}
 const ORDERS={'1a':BASE,'1b':BASE,2:shift(BASE,1),5:shift(BASE,2),3:BASE,4:shift(BASE,1),6:shift(BASE,2)};
 const SEP_IDX={1:4,2:6,3:3,4:6,5:0,6:2};
-const DI={'1a':{label:'일반 공휴일',cls:'dt1a'},'1b':{label:'일반 공휴일',cls:'dt1b'},2:{label:'WF 전날 가판',cls:'dt2'},3:{label:'WF 당일 가판',cls:'dt3'},4:{label:'금요일',cls:'dt4'},5:{label:'평일',cls:'dt5'},6:{label:'임시 공휴일',cls:'dt6'}};
+const DI={'1a':{label:'일반 공휴일',cls:'dt1a'},'1b':{label:'일반 공휴일',cls:'dt1b'},2:{label:'WF 전날 가판',cls:'dt2'},3:{label:'WF 당일 가판',cls:'dt3'},4:{label:'금요일',cls:'dt4'},5:{label:'평일',cls:'dt5'},6:{label:'대체/금 공휴',cls:'dt6'}};
+const CLS_BG={dt1a:'#dbeafe',dt1b:'#e0e7ff',dt2:'#d1fae5',dt3:'#d9f99d',dt4:'#fce7f3',dt5:'#ede9fe',dt6:'#fef3c7'};
+const CLS_FG={dt1a:'#1e3a8a',dt1b:'#3730a3',dt2:'#064e3b',dt3:'#365314',dt4:'#831843',dt5:'#4c1d95',dt6:'#78350f'};
+const CLS_BD={dt1a:'#bfdbfe',dt1b:'#c7d2fe',dt2:'#a7f3d0',dt3:'#bef264',dt4:'#fbcfe8',dt5:'#ddd6fe',dt6:'#fde68a'};
+function getClsBg(cls){return CLS_BG[cls]||'#f3f4f6';}
+function getClsFg(cls){return CLS_FG[cls]||'#374151';}
+function getClsBd(cls){return CLS_BD[cls]||'#d1d5db';}
 let ST={members:[],absences:[],overrides:{},holidays:[]};
 let curY=2026,curM=9,curView='cal',editDate=null,modalTab='swap';
 let swapY=2026,swapM=9,swapTargetDate=null,holYear=2026;
@@ -306,34 +312,51 @@ async function loadAll(){
     renderByView();
   }catch(e){setSS('err','연결 오류');console.error(e);}
 }
-// 대체공휴일 적용 대상
-const SUB_ELIGIBLE=new Set(['설날','추석','어린이날','삼일절','광복절','개천절','한글날','부처님오신날','신정']);
+// 단독 공휴일 (해당 날 자체가 토/일이면 대체공휴일 발생)
+// 단독 공휴일: 토/일 겹치거나 다른 공휴일과 겹치면 대체공휴일
+const SUB_SINGLE=new Set(['삼일절','광복절','개천절','한글날','어린이날','부처님오신날','신정','제헌절','노동절']);
+// 설날/추석 당일: 토/일 겹치면 대체공휴일
+const SUB_HOLIDAY=new Set(['설날','추석']);
 
-// 대체공휴일 자동 계산 캐시
 let _subHolCache=null;
 function getSubHolidays(){
   if(_subHolCache) return _subHolCache;
-  const base={};
-  ST.holidays.filter(h=>h.type==='regular').forEach(h=>{base[h.date]=h.name;});
-  const allDates=new Set(Object.keys(base));
+  // [date, name] 배열로 변환 (같은 날 여러 공휴일 허용)
+  const baseList=ST.holidays.filter(h=>h.type==='regular').map(h=>[h.date,h.name]);
+  const allDates=new Set(baseList.map(([ds])=>ds));
   const result={};
-  Object.entries(base).sort().forEach(([ds,name])=>{
-    if(!SUB_ELIGIBLE.has(name)) return;
+
+  function isTaken(ds){
+    const d=new Date(ds+'T00:00:00');
+    return allDates.has(ds)||result[ds]||d.getDay()===0||d.getDay()===6;
+  }
+
+  [...baseList].sort((a,b)=>a[0].localeCompare(b[0])).forEach(([ds,name])=>{
     const d=new Date(ds+'T00:00:00'),dow=d.getDay();
-    if(dow!==5&&dow!==6) return; // 토/일만
-    let sub=new Date(d);
-    if(dow===5) sub.setDate(sub.getDate()+2); // 토→월
-    else sub.setDate(sub.getDate()+1);          // 일→월
-    // 이미 공휴일이거나 주말이면 하루씩 밀기
-    while(allDates.has(fmt(sub))||result[fmt(sub)]||sub.getDay()===5||sub.getDay()===6)
-      sub.setDate(sub.getDate()+1);
+    let sub=null;
+
+    if(SUB_SINGLE.has(name)){
+      if(dow===6){sub=new Date(d);sub.setDate(sub.getDate()+2);}       // 토→+2
+      else if(dow===0){sub=new Date(d);sub.setDate(sub.getDate()+1);}   // 일→+1
+      // 평일이지만 같은 날에 다른 공휴일(연휴)과 겹치는 경우
+      else if(baseList.filter(([d2,n2])=>d2===ds&&n2!==name).length>0){
+        sub=new Date(d);sub.setDate(sub.getDate()+1);
+      }
+    } else if(SUB_HOLIDAY.has(name)){
+      if(dow===6){sub=new Date(d);sub.setDate(sub.getDate()+2);}       // 토→+2
+      else if(dow===0){sub=new Date(d);sub.setDate(sub.getDate()+1);}   // 일→+1
+    }
+
+    if(!sub) return;
+    // 겹치면 하루씩 밀기
+    while(isTaken(fmt(sub))) sub.setDate(sub.getDate()+1);
     result[fmt(sub)]=name+' 대체공휴일';
     allDates.add(fmt(sub));
   });
+
   _subHolCache=result;
   return result;
 }
-// ST 변경 시 캐시 초기화
 function clearHolCache(){_subHolCache=null;}
 
 // 창립기념일: 매년 9월 23일 고정
@@ -372,9 +395,16 @@ function getDtype(ds){
   if(dow===6)return null;
   // 토요일인 법정공휴일은 당직 없음 (대체공휴일은 별도 평일에 생성됨)
   if(isTempHol(ds))return 6;
-  // 창립기념일(9/23): 일반공휴일처럼 다음날 기준으로 유형 결정
+  // 창립기념일(9/23): 다음날 기준으로 유형 결정
   if(isAnniversary(ds)&&dow!==5&&dow!==6){return isOff(nextDs(ds))?'1b':'1a';}
-  if(dow===0||isHoliday(ds)){return isOff(nextDs(ds))?'1b':'1a';}
+  if(dow===0||isHoliday(ds)){
+    const nd=nextDs(ds);
+    // 다음날이 토요일(무조건 쉬는날)이면 가판만 → 임시공휴일 순번(6번)
+    const ndDow=new Date(nd+'T00:00:00').getDay();
+    if(ndDow===6) return 6;
+    // 다음날도 쉬는날이면 가판만(1b)
+    return isOff(nd)?'1b':'1a';
+  }
   // WF 전날 목요일 (단, 다음날이 공휴일이면 WF Day 아니므로 그냥 평일)
   if(dow===4){
     const nd=nextDs(ds);
@@ -442,44 +472,136 @@ function buildSchedule(y,m){
   return extended.filter(s=>s.year===y&&s.month===m);
 }
 function autoSwap(result){
-  const NO_SWAP=new Set([6,'1b']);
+  // 교체 불가 유형 (자체를 교체하지 않음)
+  // 1a/1b(일반공휴일), 6번(임시/대체공휴일): 교체 대상 제외, 연속 표시는 함
+  const NO_SWAP_SELF=new Set(['1a','1b',6]);
   function ik(dt){return typeof dt==='string'?1:dt;}
+  function canSwap(dtype){return!NO_SWAP_SELF.has(dtype);}
+
+  // ── 신민경 화요일 당직 자동 교체 (연속 여부 무관) ──
+  for(let i=0;i<result.length;i++){
+    const s=result[i];
+    if(s.member!=='신민경') continue;
+    if(s.isOvr) continue;
+    if(!canSwap(s.dtype)) continue;
+    const d=new Date(s.date+'T00:00:00');
+    if(d.getDay()!==2) continue; // 화요일(2)만
+    // 인접 같은 유형에서 교체 대상 탐색
+    const sKey=ik(s.dtype);
+    let swapped=false;
+    // 앞쪽 탐색
+    for(let j=i-1;j>=Math.max(0,i-14)&&!swapped;j--){
+      const pv=result[j];
+      if(pv.isOvr||!canSwap(pv.dtype)||ik(pv.dtype)!==sKey||pv.member==='신민경') continue;
+      // pv 위치에 신민경 넣었을 때 화요일인지 확인 (화요일이면 교체 의미없음)
+      const pvD=new Date(pv.date+'T00:00:00');
+      if(pvD.getDay()===2) continue;
+      // 연속당직 발생 안하는지 확인
+      const ppv=j>0?result[j-1]:null,npv=j+1<result.length&&j+1!==i?result[j+1]:null;
+      const ok1=!ppv||(new Date(pv.date)-new Date(ppv.date))/86400000>1||ppv.member!=='신민경';
+      const ok2=!npv||(new Date(npv.date)-new Date(pv.date))/86400000>1||npv.member!==pv.member;
+      // s 자리에 pv.member 넣었을 때 앞뒤 연속 없는지
+      const sp=i>0?result[i-1]:null,sn=i+1<result.length?result[i+1]:null;
+      const ok3=!sp||(new Date(s.date)-new Date(sp.date))/86400000>1||sp.member!==pv.member;
+      const ok4=!sn||(new Date(sn.date)-new Date(s.date))/86400000>1||sn.member!==pv.member;
+      if(ok1&&ok2&&ok3&&ok4){
+        const t=s.member;s.member=pv.member;pv.member=t;
+        s.autoSwapped=true;s.swapWith=pv.date;
+        pv.autoSwapped=true;pv.swapWith=s.date;
+        swapped=true;
+      }
+    }
+    // 앞쪽 실패시 뒤쪽 탐색
+    if(!swapped){
+      for(let j=i+1;j<Math.min(i+14,result.length)&&!swapped;j++){
+        const nx=result[j];
+        if(nx.isOvr||!canSwap(nx.dtype)||ik(nx.dtype)!==sKey||nx.member==='신민경') continue;
+        const nxD=new Date(nx.date+'T00:00:00');
+        if(nxD.getDay()===2) continue;
+        const pnx=result[j-1],nnx=j+1<result.length?result[j+1]:null;
+        const ok1=!pnx||(new Date(nx.date)-new Date(pnx.date))/86400000>1||pnx.member!=='신민경';
+        const ok2=!nnx||(new Date(nnx.date)-new Date(nx.date))/86400000>1||nnx.member!==nx.member;
+        const sp=i>0?result[i-1]:null,sn=i+1<result.length&&i+1!==j?result[i+1]:null;
+        const ok3=!sp||(new Date(s.date)-new Date(sp.date))/86400000>1||sp.member!==nx.member;
+        const ok4=!sn||(new Date(sn.date)-new Date(s.date))/86400000>1||sn.member!==nx.member;
+        if(ok1&&ok2&&ok3&&ok4){
+          const t=s.member;s.member=nx.member;nx.member=t;
+          s.autoSwapped=true;s.swapWith=nx.date;
+          nx.autoSwapped=true;nx.swapWith=s.date;
+          swapped=true;
+        }
+      }
+    }
+  }
+
+  // ── 연속당직 자동 교체 ──
   for(let pass=0;pass<3;pass++){
     result.forEach(s=>{s.consec=false;});
-    for(let i=1;i<result.length;i++){const p=result[i-1],c=result[i];if(c.day-p.day<=1&&p.member===c.member){p.consec=true;c.consec=true;}}
+    for(let i=1;i<result.length;i++){
+      const p=result[i-1],c=result[i];
+      if((new Date(c.date)-new Date(p.date))/86400000<=1&&p.member===c.member){p.consec=true;c.consec=true;}
+    }
     let changed=false;
     for(let i=1;i<result.length;i++){
       const p=result[i-1],c=result[i];
-      if(!(p.consec&&c.consec))continue;
-      if(p.isOvr||c.isOvr)continue;
-      if(NO_SWAP.has(p.dtype)||NO_SWAP.has(c.dtype))continue;
-      const pKey=ik(p.dtype),cKey=ik(c.dtype);let swapped=false;
-      for(let j=i-2;j>=Math.max(0,i-10)&&!swapped;j--){
-        const pv=result[j];if(pv.isOvr||ik(pv.dtype)!==pKey||pv.member===p.member)continue;
-        const ppv=j>0?result[j-1]:null,npv=j+1<result.length&&j+1!==i-1?result[j+1]:null;
-        const ok1=!ppv||(new Date(pv.date)-new Date(ppv.date))/86400000>1||ppv.member!==p.member;
-        const ok2=!npv||(new Date(npv.date)-new Date(pv.date))/86400000>1||npv.member!==pv.member;
-        const ok3=(new Date(c.date)-new Date(p.date))/86400000>1||c.member!==pv.member;
-        if(ok1&&ok2&&ok3){const t=p.member;p.member=pv.member;pv.member=t;p.autoSwapped=true;p.swapWith=pv.date;pv.autoSwapped=true;pv.swapWith=p.date;changed=true;swapped=true;}
+      if(!(p.consec&&c.consec)) continue;
+      if(p.isOvr||c.isOvr) continue;
+      if(!canSwap(p.dtype)&&!canSwap(c.dtype)) continue;
+      const pKey=ik(p.dtype),cKey=ik(c.dtype);
+      let swapped=false;
+      // 우선순위1: 앞날짜(p) 교체
+      if(canSwap(p.dtype)){
+        for(let j=i-2;j>=Math.max(0,i-14)&&!swapped;j--){
+          const pv=result[j];
+          if(pv.isOvr||!canSwap(pv.dtype)||ik(pv.dtype)!==pKey||pv.member===p.member) continue;
+          // 신민경이면 화요일 자리로 보내지 않음
+          const pvD=new Date(pv.date+'T00:00:00');
+          if(p.member==='신민경'&&pvD.getDay()===2) continue;
+          if(pv.member==='신민경'&&new Date(p.date+'T00:00:00').getDay()===2) continue;
+          const ppv=j>0?result[j-1]:null,npv=j+1<result.length&&j+1!==i-1?result[j+1]:null;
+          const ok1=!ppv||(new Date(pv.date)-new Date(ppv.date))/86400000>1||ppv.member!==p.member;
+          const ok2=!npv||(new Date(npv.date)-new Date(pv.date))/86400000>1||npv.member!==pv.member;
+          const ok3=(new Date(c.date)-new Date(p.date))/86400000>1||c.member!==pv.member;
+          if(ok1&&ok2&&ok3){
+            const t=p.member;p.member=pv.member;pv.member=t;
+            p.autoSwapped=true;p.swapWith=pv.date;
+            pv.autoSwapped=true;pv.swapWith=p.date;
+            changed=true;swapped=true;
+          }
+        }
       }
-      if(!swapped){
-        for(let j=i+1;j<Math.min(i+10,result.length)&&!swapped;j++){
-          const nx=result[j];if(nx.isOvr||ik(nx.dtype)!==cKey||nx.member===c.member)continue;
+      // 우선순위2: 뒤날짜(c) 교체
+      if(!swapped&&canSwap(c.dtype)){
+        for(let j=i+1;j<Math.min(i+14,result.length)&&!swapped;j++){
+          const nx=result[j];
+          if(nx.isOvr||!canSwap(nx.dtype)||ik(nx.dtype)!==cKey||nx.member===c.member) continue;
+          const nxD=new Date(nx.date+'T00:00:00');
+          if(c.member==='신민경'&&nxD.getDay()===2) continue;
+          if(nx.member==='신민경'&&new Date(c.date+'T00:00:00').getDay()===2) continue;
           const pnx=result[j-1],nnx=j+1<result.length?result[j+1]:null;
           const ok1=!pnx||(new Date(nx.date)-new Date(pnx.date))/86400000>1||pnx.member!==c.member;
           const ok2=!nnx||(new Date(nnx.date)-new Date(nx.date))/86400000>1||nnx.member!==nx.member;
           const ok3=(new Date(c.date)-new Date(result[i-1].date))/86400000>1||result[i-1].member!==nx.member;
-          if(ok1&&ok2&&ok3){const t=c.member;c.member=nx.member;nx.member=t;c.autoSwapped=true;c.swapWith=nx.date;nx.autoSwapped=true;nx.swapWith=c.date;changed=true;swapped=true;}
+          if(ok1&&ok2&&ok3){
+            const t=c.member;c.member=nx.member;nx.member=t;
+            c.autoSwapped=true;c.swapWith=nx.date;
+            nx.autoSwapped=true;nx.swapWith=c.date;
+            changed=true;swapped=true;
+          }
         }
       }
     }
-    if(!changed)break;
+    if(!changed) break;
   }
+  // 최종 연속 체크
   result.forEach(s=>{s.consec=false;});
-  for(let i=1;i<result.length;i++){const p=result[i-1],c=result[i];if(c.day-p.day<=1&&p.member===c.member){p.consec=true;c.consec=true;}}
+  for(let i=1;i<result.length;i++){
+    const p=result[i-1],c=result[i];
+    if((new Date(c.date)-new Date(p.date))/86400000<=1&&p.member===c.member){p.consec=true;c.consec=true;}
+  }
 }
 function renderLegend(){
-  const items=[{cls:'dt5',label:'평일'},{cls:'dt1a',label:'일반 공휴일'},{cls:'dt2',label:'WF 전날 가판'},{cls:'dt3',label:'WF 당일 가판'},{cls:'dt4',label:'금요일'},{cls:'dt6',label:'임시 공휴일'}];
+  const items=[{cls:'dt5',label:'평일'},{cls:'dt1a',label:'일반 공휴일'},{cls:'dt2',label:'WF 전날 가판'},{cls:'dt3',label:'WF 당일 가판'},{cls:'dt4',label:'금요일'},{cls:'dt6',label:'대체/금 공휴'}];
   document.getElementById('legend').innerHTML=items.map(i=>`<div class="leg"><div class="leg-dot ${i.cls}"></div><span>${i.label}</span></div>`).join('');
 }
 function renderCal(){
@@ -510,7 +632,7 @@ function renderCal(){
       cc+=dowCls+(isToday?' today':'');
       let tags='';
       if(s.consec)tags+='<span class="cal-tag cal-warn">⚠ 연속당직</span>';
-      else if(s.autoSwapped&&s.swapWith)tags+=`<span class="cal-tag cal-auto-tag">🔄 ${s.swapWith.slice(5)}</span>`;
+      else if(s.autoSwapped&&s.swapWith)tags+='<span class="cal-tag cal-auto-tag">연속당직교체</span>';
       else if(s.swapNote)tags+=`<span class="cal-tag cal-swap-tag">🔄 ${s.swapNote}</span>`;
       else if(s.isOvr)tags+=`<span class="cal-tag cal-mod-tag">✎${s.origMember?' '+s.origMember+'→':''}</span>`;
       h+=`<div class="${cc}" onclick="openEdit('${ds}')"><div class="cal-dn">${d}</div>${holName?`<div class="cal-hol">${holName}</div>`:''}<span class="cal-mb ${di.cls}">${s.member}</span><div class="cal-dtype">${di.label}</div>${tags}</div>`;
@@ -562,10 +684,39 @@ function renderHolidays(){
   document.getElementById('holContent').innerHTML=html;
 }
 function setHolYear(y){holYear=y;renderHolidays();}
+let _editingHolId=null;
 function toggleHolEdit(id){
+  // 기존 열린 수정창 닫기
+  if(_editingHolId&&_editingHolId!==id) closeHolEdit(_editingHolId);
   const nm=document.getElementById('hn-'+id),inp=document.getElementById('hni-'+id),btn=document.getElementById('heb-'+id);
-  if(inp.style.display==='none'){nm.style.display='none';inp.style.display='';inp.focus();btn.textContent='저장';btn.onclick=()=>saveHolEdit(id);}
-  else{nm.style.display='';inp.style.display='none';btn.textContent='수정';btn.onclick=()=>toggleHolEdit(id);}
+  if(!nm||!inp) return;
+  const isOpen=inp.style.display!=='none';
+  if(isOpen){ closeHolEdit(id); }
+  else {
+    nm.style.display='none';inp.style.display='';inp.focus();
+    btn.textContent='저장';btn.onclick=()=>saveHolEdit(id);
+    // 취소 버튼 삽입
+    let cancelBtn=document.getElementById('hcb-'+id);
+    if(!cancelBtn){
+      cancelBtn=document.createElement('button');
+      cancelBtn.id='hcb-'+id;
+      cancelBtn.className='btn btn-xs';
+      cancelBtn.textContent='취소';
+      cancelBtn.onclick=()=>closeHolEdit(id);
+      btn.parentNode.insertBefore(cancelBtn,btn.nextSibling);
+    }
+    cancelBtn.style.display='';
+    _editingHolId=id;
+  }
+}
+function closeHolEdit(id){
+  const nm=document.getElementById('hn-'+id),inp=document.getElementById('hni-'+id),btn=document.getElementById('heb-'+id);
+  if(!nm||!inp) return;
+  nm.style.display='';inp.style.display='none';
+  btn.textContent='수정';btn.onclick=()=>toggleHolEdit(id);
+  const cancelBtn=document.getElementById('hcb-'+id);
+  if(cancelBtn) cancelBtn.style.display='none';
+  if(_editingHolId===id) _editingHolId=null;
 }
 async function saveHolEdit(id){
   const name=document.getElementById('hni-'+id).value.trim();if(!name)return;
@@ -573,7 +724,7 @@ async function saveHolEdit(id){
   try{await api.updateHoliday(id,{name});setSS('ok','저장됨');await loadAll();}catch(e){setSS('err','저장 실패');}
 }
 function renderOrders(){
-  const info=[{key:'1a',disp:'일반 공휴일',group:'Heavy'},{key:2,disp:'WF 전날 가판',group:'Heavy'},{key:5,disp:'평일',group:'Heavy'},{key:3,disp:'WF 당일 가판',group:'Light'},{key:4,disp:'금요일',group:'Light'},{key:6,disp:'임시 공휴일',group:'Light'}];
+  const info=[{key:'1a',disp:'일반 공휴일',group:'Heavy'},{key:2,disp:'WF 전날 가판',group:'Heavy'},{key:5,disp:'평일',group:'Heavy'},{key:3,disp:'WF 당일 가판',group:'Light'},{key:4,disp:'금요일',group:'Light'},{key:6,disp:'대체/금 공휴',group:'Light'}];
   let rows='';
   info.forEach(({key,disp,group})=>{
     const di=DI[key],order=ORDERS[key],idx=typeof key==='string'?SEP_IDX[1]:SEP_IDX[key],sp=order[idx%order.length];
@@ -611,7 +762,13 @@ function renderSwapCal(){
     const ds=swapY+'-'+String(swapM).padStart(2,'0')+'-'+String(d).padStart(2,'0');
     if(ds===editDate){h+=`<div class="cal-mini-dc origin">${d}</div>`;continue;}
     const s=byDay[d];
-    if(s){const isSel=swapTargetDate===ds;h+=`<div class="cal-mini-dc has${isSel?' sel':''}" onclick="selectSwapTarget('${ds}')" title="${s.member}">${d}</div>`;}
+    if(s){
+      const isSel=swapTargetDate===ds;
+      const di=DI[s.dtype];
+      const bg=isSel?'var(--blue)':di.cls;
+      const fg=isSel?'#fff':'inherit';
+      h+=`<div class="cal-mini-dc has${isSel?' sel':''}" onclick="selectSwapTarget('${ds}')" title="${s.member} (${di.label})" style="${isSel?'':`background:var(--${di.cls}-bg,${getClsBg(di.cls)});color:${getClsFg(di.cls)};border-color:${getClsBd(di.cls)};`}">${d}<div style="font-size:6px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.member}</div></div>`;
+    }
     else h+=`<div class="cal-mini-dc empty">${d}</div>`;
   }
   document.getElementById('swapCal').innerHTML=h;
