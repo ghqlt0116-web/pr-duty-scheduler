@@ -21,28 +21,28 @@
 body{font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;}
 .app{max-width:980px;margin:0 auto;padding:0 16px 80px;}
 .header{padding:18px 0 14px;border-bottom:1px solid var(--border);margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
-.header h1{font-size:16px;font-weight:700;}
-.header p{font-size:11px;color:var(--text3);margin-top:1px;}
+.header h1{font-size:17px;font-weight:700;}
+.header p{font-size:13px;color:var(--text3);margin-top:1px;}
 .header-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
-.sync{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3);}
+.sync{display:flex;align-items:center;gap:5px;font-size:13px;color:var(--text3);}
 .sync-dot{width:7px;height:7px;border-radius:50%;background:var(--green);}
 .sync-dot.syncing{background:var(--amber);animation:pulse 1s infinite;}
 .sync-dot.err{background:var(--red);}
 @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
 .nav{display:flex;gap:2px;background:var(--bg2);border-radius:var(--r);padding:3px;margin-bottom:16px;}
-.nav-tab{flex:1;text-align:center;padding:7px 6px;border-radius:6px;font-size:12px;font-weight:500;color:var(--text2);cursor:pointer;border:none;background:none;white-space:nowrap;}
+.nav-tab{flex:1;text-align:center;padding:7px 6px;border-radius:6px;font-size:14px;font-weight:500;color:var(--text2);cursor:pointer;border:none;background:none;white-space:nowrap;}
 .nav-tab.active{background:var(--bg3);color:var(--text);box-shadow:var(--sh);}
 .month-nav{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
-.month-label{font-size:17px;font-weight:700;min-width:110px;text-align:center;}
-.mbtn{width:30px;height:30px;border:1px solid var(--border);background:var(--bg3);border-radius:var(--rs);cursor:pointer;color:var(--text2);display:flex;align-items:center;justify-content:center;font-size:13px;}
+.month-label{font-size:19px;font-weight:700;min-width:110px;text-align:center;}
+.mbtn{width:30px;height:30px;border:1px solid var(--border);background:var(--bg3);border-radius:var(--rs);cursor:pointer;color:var(--text2);display:flex;align-items:center;justify-content:center;font-size:15px;}
 .mbtn:hover{background:var(--bg2);}
 .legend{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
-.leg{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text2);font-weight:500;}
+.leg{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text2);font-weight:500;}
 .leg-dot{width:10px;height:10px;border-radius:3px;}
 .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
-.cal-dh{text-align:center;font-size:10px;font-weight:700;color:var(--text3);padding:4px 0;letter-spacing:.5px;}
+.cal-dh{text-align:center;font-size:12px;font-weight:700;color:var(--text3);padding:4px 0;letter-spacing:.5px;}
 .cal-dh.sun{color:#dc2626;}.cal-dh.sat{color:#2563eb;}
-.cal-dc{border:1px solid var(--border);border-radius:var(--rs);padding:5px 5px 4px;min-height:70px;background:var(--bg3);cursor:pointer;transition:border-color .12s,box-shadow .12s;position:relative;}
+.cal-dc{border:1px solid var(--border);border-radius:var(--rs);padding:5px 5px 4px;min-height:82px;background:var(--bg3);cursor:pointer;transition:border-color .12s,box-shadow .12s;position:relative;}
 .cal-dc:hover:not(.noduty):not(.empty){border-color:var(--border2);box-shadow:var(--sh);}
 .cal-dc.empty{background:transparent;border-color:transparent;cursor:default;pointer-events:none;}
 .cal-dc.noduty{background:var(--bg2);border-color:transparent;cursor:default;}
@@ -51,12 +51,12 @@ body{font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;ba
 .cal-dc.modified{border:2px solid #6ee7b7!important;}
 .cal-dc.swapped{border:2px solid #fbbf24!important;background:#fffbeb!important;}
 .cal-dc.today{outline:2px solid var(--blue);outline-offset:-1px;}
-.cal-dn{font-size:10px;font-weight:600;color:var(--text3);margin-bottom:2px;}
+.cal-dn{font-size:12px;font-weight:600;color:var(--text3);margin-bottom:2px;}
 .cal-dc.sun-c .cal-dn{color:#dc2626;}.cal-dc.sat-c .cal-dn{color:#2563eb;}
-.cal-hol{font-size:8px;color:#dc2626;font-weight:600;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.cal-mb{font-size:11px;padding:3px 6px;border-radius:3px;display:inline-block;font-weight:700;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px;}
-.cal-dtype{font-size:8px;font-weight:600;color:var(--text3);margin-top:1px;}
-.cal-tag{font-size:7px;padding:1px 4px;border-radius:2px;margin-top:2px;font-weight:600;display:inline-block;}
+.cal-hol{font-size:11px;color:#dc2626;font-weight:600;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.cal-mb{font-size:13px;padding:3px 6px;border-radius:3px;display:inline-block;font-weight:700;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px;}
+.cal-dtype{font-size:11px;font-weight:600;color:var(--text3);margin-top:1px;}
+.cal-tag{font-size:10px;padding:1px 4px;border-radius:2px;margin-top:2px;font-weight:600;display:inline-block;}
 .cal-warn{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;}
 .cal-swap-tag{background:#fef3c7;color:#92400e;border:1px solid #fde68a;}
 .cal-auto-tag{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;}
@@ -66,28 +66,28 @@ body{font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;ba
 .dt4{background:#fce7f3;color:#831843;}.dt5{background:#ede9fe;color:#4c1d95;}
 .dt6{background:#fef3c7;color:#78350f;}
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;}
-.modal{background:var(--bg3);border-radius:12px;padding:22px;width:100%;max-width:420px;box-shadow:var(--sh-md);}
-.modal-title{font-size:15px;font-weight:700;margin-bottom:2px;}
-.modal-sub{font-size:12px;color:var(--text3);margin-bottom:14px;}
+.modal{background:var(--bg3);border-radius:12px;padding:22px;width:100%;max-width:500px;box-shadow:var(--sh-md);}
+.modal-title{font-size:17px;font-weight:700;margin-bottom:2px;}
+.modal-sub{font-size:14px;color:var(--text3);margin-bottom:14px;}
 .modal-tabs{display:flex;gap:2px;background:var(--bg2);border-radius:6px;padding:3px;margin-bottom:14px;}
-.modal-tab{flex:1;padding:6px;border-radius:4px;border:none;font-size:12px;font-weight:600;cursor:pointer;background:none;color:var(--text2);}
+.modal-tab{flex:1;padding:6px;border-radius:4px;border:none;font-size:14px;font-weight:600;cursor:pointer;background:none;color:var(--text2);}
 .modal-tab.active{background:var(--bg3);color:var(--text);box-shadow:var(--sh);}
-.modal-note{font-size:11px;color:var(--text3);margin-bottom:10px;padding:6px 10px;background:var(--bg2);border-radius:var(--rs);}
-.modal-label{font-size:10px;font-weight:700;color:var(--text2);margin-bottom:6px;letter-spacing:.5px;text-transform:uppercase;}
-.modal-select{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--rs);font-size:13px;background:var(--bg3);color:var(--text);margin-bottom:12px;}
+.modal-note{font-size:13px;color:var(--text3);margin-bottom:10px;padding:6px 10px;background:var(--bg2);border-radius:var(--rs);}
+.modal-label{font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;letter-spacing:.5px;text-transform:uppercase;}
+.modal-select{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--rs);font-size:15px;background:var(--bg3);color:var(--text);margin-bottom:12px;}
 .modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:4px;}
 .swap-month-nav{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
-.swap-month-label{font-size:13px;font-weight:600;min-width:80px;text-align:center;}
+.swap-month-label{font-size:15px;font-weight:600;min-width:80px;text-align:center;}
 .cal-mini{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:8px;}
-.cal-mini-dh{font-size:8px;text-align:center;color:var(--text3);font-weight:600;padding:2px 0;}
-.cal-mini-dc{font-size:8px;text-align:center;padding:3px 2px;border-radius:3px;cursor:pointer;border:1px solid transparent;transition:all .1s;min-height:32px;}
+.cal-mini-dh{font-size:11px;text-align:center;color:var(--text3);font-weight:600;padding:2px 0;}
+.cal-mini-dc{font-size:11px;text-align:center;padding:3px 2px;border-radius:3px;cursor:pointer;border:1px solid transparent;transition:all .1s;min-height:38px;}
 .cal-mini-dc.has{background:var(--blue-bg);color:var(--blue);font-weight:600;border-color:var(--blue-bd);}
 .cal-mini-dc.has:hover{background:var(--blue);color:#fff;}
 .cal-mini-dc.sel{background:var(--blue);color:#fff;border-color:var(--blue);}
 .cal-mini-dc.origin{background:var(--bg2);color:var(--text3);cursor:default;}
 .cal-mini-dc.empty{cursor:default;color:var(--text3);}
-.swap-result{font-size:12px;color:var(--amber);font-weight:600;min-height:18px;padding:4px 0;}
-.btn{padding:7px 14px;border-radius:var(--rs);font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--bg3);color:var(--text);transition:all .12s;}
+.swap-result{font-size:14px;color:var(--amber);font-weight:600;min-height:18px;padding:4px 0;}
+.btn{padding:7px 14px;border-radius:var(--rs);font-size:14px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--bg3);color:var(--text);transition:all .12s;}
 .btn:hover{background:var(--bg2);}
 .btn-primary{background:var(--blue);color:#fff;border-color:var(--blue);}
 .btn-primary:hover{background:#1d4ed8;}
@@ -95,51 +95,51 @@ body{font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;ba
 .btn-danger:hover{background:var(--red-bg);}
 .btn-warn{color:var(--amber);border-color:var(--amber-bd);}
 .btn-warn:hover{background:var(--amber-bg);}
-.btn-sm{padding:4px 10px;font-size:11px;}
-.btn-xs{padding:2px 7px;font-size:10px;}
+.btn-sm{padding:4px 10px;font-size:13px;}
+.btn-xs{padding:2px 7px;font-size:12px;}
 .member-list{display:flex;flex-direction:column;gap:5px;margin-bottom:16px;}
 .member-row{display:flex;align-items:center;gap:9px;padding:9px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);}
 .member-row.deleted{opacity:.5;background:var(--bg2);}
-.avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;}
-.badge{font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600;}
+.avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;}
+.badge{font-size:12px;padding:2px 8px;border-radius:20px;font-weight:600;}
 .badge-active{background:var(--green-bg);color:var(--green);border:1px solid var(--green-bd);}
 .badge-absent{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-bd);}
 .badge-deleted{background:var(--bg2);color:var(--text3);border:1px solid var(--border);}
 .form-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;}
-.form-label{font-size:11px;color:var(--text2);font-weight:700;min-width:50px;}
-.fi{padding:6px 9px;border:1px solid var(--border);border-radius:var(--rs);font-size:12px;background:var(--bg3);color:var(--text);}
+.form-label{font-size:13px;color:var(--text2);font-weight:700;min-width:50px;}
+.fi{padding:6px 9px;border:1px solid var(--border);border-radius:var(--rs);font-size:14px;background:var(--bg3);color:var(--text);}
 .fi:focus{outline:none;border-color:var(--blue);}
 .divider{height:1px;background:var(--border);margin:16px 0;}
-.notice{padding:8px 12px;border-radius:var(--rs);font-size:12px;margin-bottom:12px;line-height:1.6;}
+.notice{padding:8px 12px;border-radius:var(--rs);font-size:14px;margin-bottom:12px;line-height:1.6;}
 .n-info{background:var(--blue-bg);border:1px solid var(--blue-bd);color:#1e3a8a;}
 .n-warn{background:var(--amber-bg);border:1px solid var(--amber-bd);color:var(--amber);}
 .n-success{background:var(--green-bg);border:1px solid var(--green-bd);color:var(--green);}
-.section-title{font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px;}
+.section-title{font-size:14px;font-weight:700;color:var(--text2);margin-bottom:8px;}
 .absence-list{display:flex;flex-direction:column;gap:4px;}
-.absence-item{background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);padding:8px 11px;font-size:12px;}
+.absence-item{background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);padding:8px 11px;font-size:14px;}
 .absence-view{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 .absence-edit{display:none;padding:8px 0 2px;gap:6px;flex-wrap:wrap;}
 .absence-item.editing .absence-edit{display:flex;}
 .absence-item.editing .absence-view{display:none;}
 .hol-year-tabs{display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap;}
-.hol-year-tab{padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--bg3);color:var(--text2);}
+.hol-year-tab{padding:5px 14px;border-radius:20px;font-size:14px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--bg3);color:var(--text2);}
 .hol-year-tab.active{background:var(--blue);color:#fff;border-color:var(--blue);}
 .hol-month-group{margin-bottom:14px;}
-.hol-month-title{font-size:11px;font-weight:700;color:var(--text3);margin-bottom:6px;letter-spacing:.5px;}
+.hol-month-title{font-size:13px;font-weight:700;color:var(--text3);margin-bottom:6px;letter-spacing:.5px;}
 .hol-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;}
 .hol-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);padding:8px 10px;display:flex;align-items:center;gap:7px;}
-.hol-date{font-size:11px;font-weight:700;min-width:30px;color:var(--text2);}
-.hol-name{font-size:12px;flex:1;}
-.hol-name-input{font-size:12px;flex:1;border:1px solid var(--blue-bd);border-radius:3px;padding:2px 5px;background:var(--blue-bg);}
-.hol-type-badge{font-size:9px;padding:1px 6px;border-radius:3px;font-weight:600;flex-shrink:0;}
+.hol-date{font-size:13px;font-weight:700;min-width:30px;color:var(--text2);}
+.hol-name{font-size:14px;flex:1;}
+.hol-name-input{font-size:14px;flex:1;border:1px solid var(--blue-bd);border-radius:3px;padding:2px 5px;background:var(--blue-bg);}
+.hol-type-badge{font-size:12px;padding:1px 6px;border-radius:3px;font-weight:600;flex-shrink:0;}
 .ht-regular{background:#fef2f2;color:#dc2626;}
 .ht-temp{background:var(--amber-bg);color:var(--amber);}
 .ht-company{background:var(--purple-bg);color:var(--purple);}
-.dtable{width:100%;border-collapse:collapse;font-size:12px;}
-.dtable th{padding:6px 8px;text-align:left;font-size:9px;font-weight:700;color:var(--text3);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.5px;}
+.dtable{width:100%;border-collapse:collapse;font-size:14px;}
+.dtable th{padding:6px 8px;text-align:left;font-size:12px;font-weight:700;color:var(--text3);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.5px;}
 .dtable td{padding:7px 8px;border-bottom:1px solid var(--bg2);}
 .dtable tr:last-child td{border-bottom:none;}
-@media(max-width:600px){.cal-dtype{display:none;}.cal-dc{min-height:56px;}.month-label{font-size:15px;}}
+@media(max-width:600px){.cal-dtype{display:none;}.cal-dc{min-height:68px;}.month-label{font-size:17px;}}
 </style>
 </head>
 <body>
@@ -167,7 +167,7 @@ body{font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;ba
     <div class="legend" id="legend"></div>
     <div id="calNotice"></div>
     <div class="cal" id="calGrid"></div>
-    <p style="font-size:11px;color:var(--text3);margin-top:8px">📌 날짜 클릭 → 수정 &nbsp;·&nbsp; ⚠ 빨간: 연속당직 &nbsp;·&nbsp; 🟡 노란테두리: 상호스왑 &nbsp;·&nbsp; 🟢 초록테두리: 담당자변경</p>
+    <p style="font-size:13px;color:var(--text3);margin-top:8px">📌 날짜 클릭 → 수정 &nbsp;·&nbsp; ⚠ 빨간: 연속당직 &nbsp;·&nbsp; 🟡 노란테두리: 상호스왑 &nbsp;·&nbsp; 🟢 초록테두리: 담당자변경</p>
   </div>
   <div id="viewMembers" style="display:none">
     <div class="notice n-info">변경사항은 실시간으로 모든 팀원에게 반영됩니다.</div>
@@ -232,9 +232,9 @@ body{font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;ba
     </div>
     <div id="panelSwap">
       <div class="swap-month-nav">
-        <button class="mbtn" onclick="swapMonthChange(-1)" style="width:26px;height:26px;font-size:11px">◀</button>
+        <button class="mbtn" onclick="swapMonthChange(-1)" style="width:26px;height:26px;font-size:13px">◀</button>
         <span class="swap-month-label" id="swapMonthLabel"></span>
-        <button class="mbtn" onclick="swapMonthChange(1)" style="width:26px;height:26px;font-size:11px">▶</button>
+        <button class="mbtn" onclick="swapMonthChange(1)" style="width:26px;height:26px;font-size:13px">▶</button>
       </div>
       <div class="cal-mini" id="swapCal"></div>
       <div class="swap-result" id="swapResult"></div>
@@ -608,6 +608,7 @@ function renderCal(){
   const y=curY,m=curM;
   document.getElementById('monthLabel').textContent=`${y}년 ${m}월`;
   if(y<2026||(y===2026&&m<9)){document.getElementById('calGrid').innerHTML='';document.getElementById('calNotice').innerHTML='<div class="notice n-warn">⚠ 2026년 9월 이후를 선택해주세요.</div>';return;}
+  if(y===2027&&m>=2){document.getElementById('calGrid').innerHTML='';document.getElementById('calNotice').innerHTML='<div class="notice n-warn">⚠ 2027년 2월 이후는 WF 일정 확정 후 업데이트 예정입니다. 공휴일 탭에서 설날·추석 등을 추가한 후 이용해주세요.</div>';return;}
   document.getElementById('calNotice').innerHTML='';
   const sched=buildSchedule(y,m);
   const byDay={};sched.forEach(s=>byDay[s.day]=s);
@@ -632,7 +633,7 @@ function renderCal(){
       cc+=dowCls+(isToday?' today':'');
       let tags='';
       if(s.consec)tags+='<span class="cal-tag cal-warn">⚠ 연속당직</span>';
-      else if(s.autoSwapped&&s.swapWith)tags+='<span class="cal-tag cal-auto-tag">연속당직교체</span>';
+      else if(s.autoSwapped&&s.swapWith)tags+=`<span class="cal-tag cal-auto-tag">연속당직교체(${s.swapWith.slice(5)})</span>`;
       else if(s.swapNote)tags+=`<span class="cal-tag cal-swap-tag">🔄 ${s.swapNote}</span>`;
       else if(s.isOvr)tags+=`<span class="cal-tag cal-mod-tag">✎${s.origMember?' '+s.origMember+'→':''}</span>`;
       h+=`<div class="${cc}" onclick="openEdit('${ds}')"><div class="cal-dn">${d}</div>${holName?`<div class="cal-hol">${holName}</div>`:''}<span class="cal-mb ${di.cls}">${s.member}</span><div class="cal-dtype">${di.label}</div>${tags}</div>`;
@@ -647,19 +648,19 @@ function renderMembers(){
   let html='';
   active.forEach(mb=>{
     const absent=ST.absences.find(a=>a.member===mb.name&&fmt(new Date())>=a.start&&fmt(new Date())<=a.end);
-    html+=`<div class="member-row"><div class="avatar" style="background:${mb.color};color:${mb.tc}">${mb.name.slice(-2)}</div><div style="flex:1"><div style="font-weight:700;font-size:13px">${mb.name}</div><div style="font-size:11px;color:var(--text3)">${mb.joinDate} 합류</div></div>${absent?`<span class="badge badge-absent">${absent.reason}</span>`:`<span class="badge badge-active">재직중</span>`}<button class="btn btn-danger btn-xs" onclick="deleteMember('${mb.name}')">삭제</button></div>`;
+    html+=`<div class="member-row"><div class="avatar" style="background:${mb.color};color:${mb.tc}">${mb.name.slice(-2)}</div><div style="flex:1"><div style="font-weight:700;font-size:15px">${mb.name}</div><div style="font-size:13px;color:var(--text3)">${mb.joinDate} 합류</div></div>${absent?`<span class="badge badge-absent">${absent.reason}</span>`:`<span class="badge badge-active">재직중</span>`}<button class="btn btn-danger btn-xs" onclick="deleteMember('${mb.name}')">삭제</button></div>`;
   });
-  document.getElementById('memberList').innerHTML=html||'<p style="color:var(--text3);font-size:12px">팀원 없음</p>';
+  document.getElementById('memberList').innerHTML=html||'<p style="color:var(--text3);font-size:14px">팀원 없음</p>';
   document.getElementById('absMember').innerHTML=active.map(mb=>`<option>${mb.name}</option>`).join('');
   const delSec=document.getElementById('deletedSection');
   if(deleted.length>0){
     delSec.style.display='';
     document.getElementById('deletedCount').textContent=`(${deleted.length}명)`;
-    document.getElementById('deletedList').innerHTML=deleted.map(mb=>`<div class="member-row deleted"><div class="avatar" style="background:${mb.color};color:${mb.tc}">${mb.name.slice(-2)}</div><div style="flex:1"><div style="font-weight:700;font-size:13px">${mb.name}</div><div style="font-size:11px;color:var(--text3)">${mb.joinDate} 합류</div></div><span class="badge badge-deleted">삭제됨</span><button class="btn btn-sm" onclick="restoreMember('${mb.name}')">복구</button></div>`).join('');
+    document.getElementById('deletedList').innerHTML=deleted.map(mb=>`<div class="member-row deleted"><div class="avatar" style="background:${mb.color};color:${mb.tc}">${mb.name.slice(-2)}</div><div style="flex:1"><div style="font-weight:700;font-size:15px">${mb.name}</div><div style="font-size:13px;color:var(--text3)">${mb.joinDate} 합류</div></div><span class="badge badge-deleted">삭제됨</span><button class="btn btn-sm" onclick="restoreMember('${mb.name}')">복구</button></div>`).join('');
   }else{delSec.style.display='none';}
-  let ahtml=ST.absences.length?'':`<p style="font-size:12px;color:var(--text3)">등록된 부재 없음</p>`;
+  let ahtml=ST.absences.length?'':`<p style="font-size:14px;color:var(--text3)">등록된 부재 없음</p>`;
   ST.absences.forEach(a=>{
-    ahtml+=`<div class="absence-item" id="abs-${a.id}"><div class="absence-view" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="font-weight:700;min-width:54px">${a.member}</span><span style="color:var(--text2)">${a.start} ~ ${a.end}</span><span style="color:var(--text3)">${a.reason}</span><button class="btn btn-xs" onclick="toggleAbsEdit(${a.id})" style="margin-left:auto">수정</button><button class="btn btn-danger btn-xs" onclick="removeAbsence(${a.id})">삭제</button></div><div class="absence-edit" style="display:none;padding:8px 0 2px;gap:6px;flex-wrap:wrap"><input class="fi" type="date" id="absEs-${a.id}" value="${a.start}" style="width:120px"><span style="font-size:12px">~</span><input class="fi" type="date" id="absEe-${a.id}" value="${a.end}" style="width:120px"><input class="fi" id="absEr-${a.id}" value="${a.reason}" style="width:100px"><button class="btn btn-primary btn-xs" onclick="saveAbsEdit(${a.id})">저장</button><button class="btn btn-xs" onclick="toggleAbsEdit(${a.id})">취소</button></div></div>`;
+    ahtml+=`<div class="absence-item" id="abs-${a.id}"><div class="absence-view" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="font-weight:700;min-width:54px">${a.member}</span><span style="color:var(--text2)">${a.start} ~ ${a.end}</span><span style="color:var(--text3)">${a.reason}</span><button class="btn btn-xs" onclick="toggleAbsEdit(${a.id})" style="margin-left:auto">수정</button><button class="btn btn-danger btn-xs" onclick="removeAbsence(${a.id})">삭제</button></div><div class="absence-edit" style="display:none;padding:8px 0 2px;gap:6px;flex-wrap:wrap"><input class="fi" type="date" id="absEs-${a.id}" value="${a.start}" style="width:120px"><span style="font-size:14px">~</span><input class="fi" type="date" id="absEe-${a.id}" value="${a.end}" style="width:120px"><input class="fi" id="absEr-${a.id}" value="${a.reason}" style="width:100px"><button class="btn btn-primary btn-xs" onclick="saveAbsEdit(${a.id})">저장</button><button class="btn btn-xs" onclick="toggleAbsEdit(${a.id})">취소</button></div></div>`;
   });
   document.getElementById('absenceList').innerHTML=ahtml;
 }
@@ -671,7 +672,7 @@ function renderHolidays(){
   const byMonth={};yearHols.forEach(h=>{const mo=h.date.slice(0,7);if(!byMonth[mo])byMonth[mo]=[];byMonth[mo].push(h);});
   const tl={regular:'법정',temp:'임시',company:'회사'};const tc={regular:'ht-regular',temp:'ht-temp',company:'ht-company'};
   let html='';
-  if(!Object.keys(byMonth).length)html='<p style="color:var(--text3);font-size:12px">이 연도에 등록된 공휴일이 없습니다.</p>';
+  if(!Object.keys(byMonth).length)html='<p style="color:var(--text3);font-size:14px">이 연도에 등록된 공휴일이 없습니다.</p>';
   Object.entries(byMonth).forEach(([ym,hols])=>{
     const mo=parseInt(ym.slice(5));
     html+=`<div class="hol-month-group"><div class="hol-month-title">${mo}월</div><div class="hol-grid">`;
@@ -728,7 +729,7 @@ function renderOrders(){
   let rows='';
   info.forEach(({key,disp,group})=>{
     const di=DI[key],order=ORDERS[key],idx=typeof key==='string'?SEP_IDX[1]:SEP_IDX[key],sp=order[idx%order.length];
-    rows+=`<tr><td><span class="badge ${di.cls}" style="font-size:11px">${disp}</span></td><td style="font-size:10px;color:var(--text3)">${group}</td><td style="font-weight:700;color:var(--blue)">${sp}</td><td style="color:var(--text3);font-size:11px">${order.join(' → ')}</td></tr>`;
+    rows+=`<tr><td><span class="badge ${di.cls}" style="font-size:13px">${disp}</span></td><td style="font-size:12px;color:var(--text3)">${group}</td><td style="font-weight:700;color:var(--blue)">${sp}</td><td style="color:var(--text3);font-size:13px">${order.join(' → ')}</td></tr>`;
   });
   document.getElementById('ordersBody').innerHTML=rows;
 }
@@ -767,7 +768,7 @@ function renderSwapCal(){
       const di=DI[s.dtype];
       const bg=isSel?'var(--blue)':di.cls;
       const fg=isSel?'#fff':'inherit';
-      h+=`<div class="cal-mini-dc has${isSel?' sel':''}" onclick="selectSwapTarget('${ds}')" title="${s.member} (${di.label})" style="${isSel?'':`background:var(--${di.cls}-bg,${getClsBg(di.cls)});color:${getClsFg(di.cls)};border-color:${getClsBd(di.cls)};`}">${d}<div style="font-size:6px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.member}</div></div>`;
+      h+=`<div class="cal-mini-dc has${isSel?' sel':''}" onclick="selectSwapTarget('${ds}')" title="${s.member} (${di.label})" style="${isSel?'':`background:var(--${di.cls}-bg,${getClsBg(di.cls)});color:${getClsFg(di.cls)};border-color:${getClsBd(di.cls)};`}">${d}<div style="font-size:9px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.member}</div></div>`;
     }
     else h+=`<div class="cal-mini-dc empty">${d}</div>`;
   }
@@ -888,7 +889,8 @@ function changeMonth(d){curM+=d;if(curM>12){curM=1;curY++;}if(curM<1){curM=12;cu
 function onDateChange(){curY=parseInt(document.getElementById('yearSel').value);curM=parseInt(document.getElementById('monthSel').value);renderByView();}
 function init(){
   const ySel=document.getElementById('yearSel'),mSel=document.getElementById('monthSel');
-  for(let y=2026;y<=2030;y++){const o=document.createElement('option');o.value=y;o.text=y+'년';ySel.appendChild(o);}
+  // 2026~2027년 1월까지 지원
+for(let y=2026;y<=2027;y++){const o=document.createElement('option');o.value=y;o.text=y+'년';ySel.appendChild(o);}
   for(let m=1;m<=12;m++){const o=document.createElement('option');o.value=m;o.text=m+'월';mSel.appendChild(o);}
   ySel.value=curY;mSel.value=curM;renderLegend();loadAll();setInterval(loadAll,30000);
 }
