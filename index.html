@@ -148,6 +148,10 @@ body{font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;ba
     <div><h1>📰 PR팀 가판 당직 스케줄러</h1><p>2026년 9월~ · 날짜 클릭으로 수정 가능</p></div>
     <div class="header-right">
       <div class="sync"><div class="sync-dot" id="syncDot"></div><span id="syncText">연결 중...</span></div>
+      <div style="display:flex;gap:2px;background:var(--bg2);border-radius:var(--rs);padding:3px;">
+        <button id="btnOld" onclick="setOrderVer(false)" style="padding:4px 10px;border-radius:4px;border:none;font-size:11px;font-weight:600;cursor:pointer;background:none;color:var(--text2);">기존 순번</button>
+        <button id="btnNew" onclick="setOrderVer(true)" style="padding:4px 10px;border-radius:4px;border:none;font-size:11px;font-weight:600;cursor:pointer;background:var(--bg3);box-shadow:var(--sh);color:var(--text);">개선 순번</button>
+      </div>
       <select class="fi" id="yearSel" onchange="onDateChange()"></select>
       <select class="fi" id="monthSel" onchange="onDateChange()"></select>
     </div>
@@ -157,6 +161,7 @@ body{font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;ba
     <button class="nav-tab" onclick="setView('members')">👥 인원</button>
     <button class="nav-tab" onclick="setView('holidays')">🗓 공휴일</button>
     <button class="nav-tab" onclick="setView('orders')">📋 순번</button>
+    <button class="nav-tab" onclick="setView('compare')">📊 비교</button>
   </div>
   <div id="viewCal">
     <div class="month-nav">
@@ -222,6 +227,42 @@ body{font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;ba
       <tbody id="ordersBody"></tbody>
     </table>
   </div>
+
+  <div id="viewCompare" style="display:none">
+    <div class="notice n-info">📊 기존 순번(담당자 제공)과 개선 순번(시프트 구조)의 2026년 9월~2027년 1월 비교</div>
+
+    <!-- 순번 비교 -->
+    <div class="section-title" style="margin-bottom:10px">유형별 순번 비교</div>
+    <table class="dtable" id="compareOrdersTable">
+      <thead><tr><th>유형</th><th>기존 순번</th><th>개선 순번</th></tr></thead>
+      <tbody id="compareOrdersBody"></tbody>
+    </table>
+
+    <div class="divider"></div>
+
+    <!-- 월별 당직 횟수 -->
+    <div class="section-title" style="margin-bottom:6px">월별 인당 당직 횟수</div>
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
+      <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2)"><div style="width:12px;height:12px;background:#B5D4F4;border-radius:2px"></div>기존 순번</div>
+      <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2)"><div style="width:12px;height:12px;background:#5DCAA5;border-radius:2px"></div>개선 순번</div>
+      <div style="font-size:11px;color:var(--red);margin-left:4px">빨간 숫자: 해당 월 최대</div>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="dtable" id="compareMonthTable" style="min-width:600px">
+        <thead id="compareMonthHead"></thead>
+        <tbody id="compareMonthBody"></tbody>
+      </table>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- 총합 비교 -->
+    <div class="section-title" style="margin-bottom:10px">5개월 총합 비교</div>
+    <div id="compareTotalBars"></div>
+
+    <!-- 요약 카드 -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px" id="compareSummary"></div>
+  </div>
 </div>
 <div class="modal-overlay" id="modalOverlay" style="display:none" onclick="closeModal(event)">
   <div class="modal" onclick="event.stopPropagation()">
@@ -283,8 +324,21 @@ const api={
 };
 const BASE=['이홍연','유시화','조현우','최승훈','신동석','신민경','손정모','한수연'];
 function shift(arr,n){return[...arr.slice(n),...arr.slice(0,n)];}
-const ORDERS={'1a':BASE,'1b':BASE,2:shift(BASE,1),5:shift(BASE,2),3:BASE,4:shift(BASE,1),6:shift(BASE,2)};
-const SEP_IDX={1:4,2:6,3:3,4:6,5:0,6:2};
+const ORDERS_NEW={'1a':BASE,'1b':BASE,2:shift(BASE,1),5:shift(BASE,2),3:BASE,4:shift(BASE,2),6:shift(BASE,1)};
+const SEP_IDX_NEW={1:4,2:6,3:3,4:6,5:0,6:2};
+const ORDERS_OLD={
+  '1a':['신민경','손정모','한수연','이홍연','유시화','조현우','최승훈','신동석'],
+  '1b':['신민경','손정모','한수연','이홍연','유시화','조현우','최승훈','신동석'],
+  2:   ['손정모','한수연','이홍연','유시화','조현우','최승훈','신동석','신민경'],
+  5:   ['이홍연','신민경','한수연','최승훈','유시화','손정모','조현우','신동석'],
+  3:   ['최승훈','손정모','신민경','한수연','유시화','이홍연','신동석','조현우'],
+  4:   ['이홍연','손정모','최승훈','신동석','조현우','신민경','한수연','유시화'],
+  6:   ['신동석','이홍연','신민경','한수연','최승훈','유시화','손정모','조현우'],
+};
+const SEP_IDX_OLD={1:0,2:0,3:0,4:0,5:0,6:0};
+let USE_NEW=true;
+let ORDERS=ORDERS_NEW;
+let SEP_IDX=SEP_IDX_NEW;
 const DI={'1a':{label:'일반 공휴일',cls:'dt1a'},'1b':{label:'일반 공휴일',cls:'dt1b'},2:{label:'WF 전날 가판',cls:'dt2'},3:{label:'WF 당일 가판',cls:'dt3'},4:{label:'금요일',cls:'dt4'},5:{label:'평일',cls:'dt5'},6:{label:'대체/금 공휴',cls:'dt6'}};
 const CLS_BG={dt1a:'#dbeafe',dt1b:'#e0e7ff',dt2:'#d1fae5',dt3:'#d9f99d',dt4:'#fce7f3',dt5:'#ede9fe',dt6:'#fef3c7'};
 const CLS_FG={dt1a:'#1e3a8a',dt1b:'#3730a3',dt2:'#064e3b',dt3:'#365314',dt4:'#831843',dt5:'#4c1d95',dt6:'#78350f'};
@@ -698,7 +752,7 @@ function renderCal(){
   // 인원별 당직 횟수
   const counts={};
   sched.forEach(s=>{counts[s.member]=(counts[s.member]||0)+1;});
-  const active=ST.members.filter(mb=>!mb.deletedAt&&fmtYM(y,m)>=mb.joinDate);
+  const active=ST.members.filter(mb=>!mb.deletedAt&&fmtYM(y,m)>=mb.joinDate).sort((a,b)=>a.name.localeCompare(b.name,'ko'));
   const countHtml=active.map(mb=>{
     const c=counts[mb.name]||0;
     return `<div style="display:flex;align-items:center;gap:5px;padding:4px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:20px;font-size:12px;">
@@ -790,6 +844,156 @@ async function saveHolEdit(id){
   setSS('syncing','저장 중...');
   try{await api.updateHoliday(id,{name});setSS('ok','저장됨');await loadAll();}catch(e){setSS('err','저장 실패');}
 }
+function renderCompare(){
+  const members=['손정모','신동석','신민경','유시화','이홍연','조현우','최승훈','한수연'];
+  const months=['2026-09','2026-10','2026-11','2026-12','2027-01'];
+  const typeNames={'1a':'일반 공휴일',2:'WF 전날 가판',5:'평일',3:'WF 당일 가판',4:'금요일',6:'대체/금 공휴'};
+  const typeCls={'1a':'dt1a',2:'dt2',5:'dt5',3:'dt3',4:'dt4',6:'dt6'};
+  const ORDERS_CMP_OLD={
+    '1a':['신민경','손정모','한수연','이홍연','유시화','조현우','최승훈','신동석'],
+    2:   ['손정모','한수연','이홍연','유시화','조현우','최승훈','신동석','신민경'],
+    5:   ['이홍연','신민경','한수연','최승훈','유시화','손정모','조현우','신동석'],
+    3:   ['최승훈','손정모','신민경','한수연','유시화','이홍연','신동석','조현우'],
+    4:   ['이홍연','손정모','최승훈','신동석','조현우','신민경','한수연','유시화'],
+    6:   ['신동석','이홍연','신민경','한수연','최승훈','유시화','손정모','조현우'],
+  };
+
+  // 순번 비교 테이블
+  let ordersRows='';
+  [['1a','일반 공휴일'],['2','WF 전날 가판'],['5','평일'],['3','WF 당일 가판'],['4','금요일'],['6','대체/금 공휴']].forEach(([t,name])=>{
+    const key=isNaN(t)?t:parseInt(t);
+    const oldO=ORDERS_CMP_OLD[key]||ORDERS_CMP_OLD['1a'];
+    const newO=ORDERS_NEW[key]||ORDERS_NEW['1a'];
+    const oldStr=oldO.map(n=>`<span style="font-size:11px;padding:1px 6px;border-radius:3px;background:var(--bg2);margin:1px">${n}</span>`).join(' ');
+    const newStr=newO.map(n=>`<span style="font-size:11px;padding:1px 6px;border-radius:3px;background:var(--bg2);margin:1px">${n}</span>`).join(' ');
+    ordersRows+=`<tr>
+      <td><span class="badge ${typeCls[key]||'dt5'}" style="font-size:11px">${name}</span></td>
+      <td style="line-height:2">${oldStr}</td>
+      <td style="line-height:2">${newStr}</td>
+    </tr>`;
+  });
+  document.getElementById('compareOrdersBody').innerHTML=ordersRows;
+
+  // 월별 횟수 계산
+  function buildSchedSimple(orders,sepIdx){
+    const idx=Object.assign({},sepIdx);
+    const result=[];
+    let d=new Date(2026,8,1);
+    const endD=new Date(2027,1,1);
+    while(d<endD){
+      const ds=fmt(d),dtype=getDtype(ds);
+      if(dtype!==null){
+        const ik2=typeof dtype==='string'?1:dtype;
+        const order=orders[dtype]||orders['1a']||[];
+        const ym=ds.slice(0,7);
+        const active=order.filter(n=>{const m=ST.members.find(x=>x.name===n);return m&&!m.deletedAt&&ym>=m.joinDate;});
+        if(active.length>0){
+          const member=active[idx[ik2]%active.length];
+          result.push({date:ds,month:d.getMonth()+1,year:d.getFullYear(),member});
+          idx[ik2]=(idx[ik2]||0)+1;
+        }
+      }
+      d.setDate(d.getDate()+1);
+    }
+    return result;
+  }
+
+  const schedOld=buildSchedSimple(ORDERS_CMP_OLD,{1:0,2:0,3:0,4:0,5:0,6:0});
+  const schedNew=buildSchedSimple(ORDERS_NEW,SEP_IDX_NEW);
+
+  function countBy(sched){
+    const c={};
+    sched.forEach(s=>{
+      const ym=s.year+'-'+String(s.month).padStart(2,'0');
+      if(!c[ym])c[ym]={};
+      c[ym][s.member]=(c[ym][s.member]||0)+1;
+    });
+    return c;
+  }
+  const co=countBy(schedOld),cn=countBy(schedNew);
+
+  // 월별 테이블 헤더
+  let thead=`<tr><th style="text-align:left">월/이름</th>`;
+  members.forEach(m=>thead+=`<th>${m.slice(0,2)}</th>`);
+  thead+=`<th>편차</th></tr>`;
+  document.getElementById('compareMonthHead').innerHTML=thead;
+
+  // 월별 테이블 바디
+  let tbody='';
+  const totalOld={},totalNew={};
+  members.forEach(m=>{totalOld[m]=0;totalNew[m]=0;});
+
+  months.forEach(ym=>{
+    const mo=parseInt(ym.slice(5));
+    const yr=parseInt(ym.slice(0,4));
+    // 기존 행
+    const ovalsArr=members.map(m=>co[ym]?co[ym][m]||0:0);
+    const omx=Math.max(...ovalsArr),omn=Math.min(...ovalsArr.filter(v=>v>0)||[0]);
+    let oldRow=`<tr><td style="font-size:11px;color:var(--text2)">${mo}월 기존</td>`;
+    ovalsArr.forEach((v,i)=>{
+      const color=v===omx?'color:var(--red);font-weight:700':'';
+      oldRow+=`<td style="background:#EFF6FF;${color}">${v}</td>`;
+      totalOld[members[i]]+=v;
+    });
+    oldRow+=`<td style="background:#EFF6FF;font-size:11px">${omx-omn}</td></tr>`;
+
+    // 개선 행
+    const nvalsArr=members.map(m=>cn[ym]?cn[ym][m]||0:0);
+    const nmx=Math.max(...nvalsArr),nmn=Math.min(...nvalsArr.filter(v=>v>0)||[0]);
+    let newRow=`<tr><td style="font-size:11px;color:var(--text2)">${mo}월 개선</td>`;
+    nvalsArr.forEach((v,i)=>{
+      const color=v===nmx?'color:var(--red);font-weight:700':'';
+      newRow+=`<td style="background:#F0FAF4;${color}">${v}</td>`;
+      totalNew[members[i]]+=v;
+    });
+    newRow+=`<td style="background:#F0FAF4;font-size:11px">${nmx-nmn}</td></tr>`;
+
+    tbody+=oldRow+newRow+`<tr><td colspan="${members.length+2}" style="height:4px;background:var(--bg2)"></td></tr>`;
+  });
+
+  // 합계 행
+  const otArr=members.map(m=>totalOld[m]);
+  const ntArr=members.map(m=>totalNew[m]);
+  const omx=Math.max(...otArr),omn=Math.min(...otArr);
+  const nmx=Math.max(...ntArr),nmn=Math.min(...ntArr);
+  let oldTotal=`<tr style="font-weight:700"><td>합계 기존</td>`;
+  otArr.forEach(v=>oldTotal+=`<td style="background:#EFF6FF">${v}</td>`);
+  oldTotal+=`<td style="background:#EFF6FF;color:var(--red)">${omx-omn}</td></tr>`;
+  let newTotal=`<tr style="font-weight:700"><td>합계 개선</td>`;
+  ntArr.forEach(v=>newTotal+=`<td style="background:#F0FAF4">${v}</td>`);
+  newTotal+=`<td style="background:#F0FAF4;color:var(--green)">${nmx-nmn}</td></tr>`;
+  tbody+=oldTotal+newTotal;
+  document.getElementById('compareMonthBody').innerHTML=tbody;
+
+  // 총합 바 차트
+  const maxT=Math.max(...otArr,...ntArr);
+  let bars='';
+  members.forEach(m=>{
+    const o=totalOld[m],n=totalNew[m];
+    bars+=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:7px">
+      <div style="min-width:52px;font-size:12px;font-weight:500">${m}</div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:3px">
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="width:${Math.round(o/maxT*200)}px;height:14px;background:#B5D4F4;border-radius:2px;transition:width .3s"></div>
+          <span style="font-size:11px;color:var(--text2)">${o}회</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="width:${Math.round(n/maxT*200)}px;height:14px;background:#5DCAA5;border-radius:2px;transition:width .3s"></div>
+          <span style="font-size:11px;color:var(--text2)">${n}회</span>
+        </div>
+      </div>
+    </div>`;
+  });
+  document.getElementById('compareTotalBars').innerHTML=bars;
+
+  // 요약 카드
+  document.getElementById('compareSummary').innerHTML=`
+    <div class="stat-card"><div class="stat-label">기존 총합 격차</div><div class="stat-val" style="color:var(--red)">${omx-omn}회</div><div class="stat-sub">${omn}~${omx}회</div></div>
+    <div class="stat-card"><div class="stat-label">개선 총합 격차</div><div class="stat-val" style="color:var(--green)">${nmx-nmn}회</div><div class="stat-sub">${nmn}~${nmx}회</div></div>
+    <div class="stat-card"><div class="stat-label">개선 효과</div><div class="stat-val">${omx-omn-(nmx-nmn)}회 ↓</div><div class="stat-sub">총합 기준</div></div>
+  `;
+}
+
 function renderOrders(){
   const info=[{key:'1a',disp:'일반 공휴일',group:'Heavy'},{key:2,disp:'WF 전날 가판',group:'Heavy'},{key:5,disp:'평일',group:'Heavy'},{key:3,disp:'WF 당일 가판',group:'Light'},{key:4,disp:'금요일',group:'Light'},{key:6,disp:'대체/금 공휴',group:'Light'}];
   let rows='';
@@ -946,13 +1150,21 @@ async function removeHoliday(id){
 }
 function setView(v){
   curView=v;
-  ['cal','members','holidays','orders'].forEach(id=>{document.getElementById('view'+id.charAt(0).toUpperCase()+id.slice(1)).style.display=v===id?'':'none';});
-  document.querySelectorAll('.nav-tab').forEach((t,i)=>{t.className='nav-tab'+(['cal','members','holidays','orders'][i]===v?' active':'');});
+  ['cal','members','holidays','orders','compare'].forEach(id=>{document.getElementById('view'+id.charAt(0).toUpperCase()+id.slice(1)).style.display=v===id?'':'none';});
+  document.querySelectorAll('.nav-tab').forEach((t,i)=>{t.className='nav-tab'+(['cal','members','holidays','orders','compare'][i]===v?' active':'');});
   renderByView();
 }
 function renderByView(){if(curView==='cal')renderCal();else if(curView==='members')renderMembers();else if(curView==='holidays')renderHolidays();else if(curView==='orders')renderOrders();}
 function changeMonth(d){curM+=d;if(curM>12){curM=1;curY++;}if(curM<1){curM=12;curY--;}document.getElementById('yearSel').value=curY;document.getElementById('monthSel').value=curM;renderByView();}
 function onDateChange(){curY=parseInt(document.getElementById('yearSel').value);curM=parseInt(document.getElementById('monthSel').value);renderByView();}
+function setOrderVer(useNew){
+  USE_NEW=useNew;
+  ORDERS=USE_NEW?ORDERS_NEW:ORDERS_OLD;
+  SEP_IDX=USE_NEW?SEP_IDX_NEW:SEP_IDX_OLD;
+  document.getElementById('btnNew').style.cssText=useNew?'padding:4px 10px;border-radius:4px;border:none;font-size:11px;font-weight:600;cursor:pointer;background:var(--bg3);box-shadow:var(--sh);color:var(--text);':'padding:4px 10px;border-radius:4px;border:none;font-size:11px;font-weight:600;cursor:pointer;background:none;color:var(--text2);';
+  document.getElementById('btnOld').style.cssText=useNew?'padding:4px 10px;border-radius:4px;border:none;font-size:11px;font-weight:600;cursor:pointer;background:none;color:var(--text2);':'padding:4px 10px;border-radius:4px;border:none;font-size:11px;font-weight:600;cursor:pointer;background:var(--bg3);box-shadow:var(--sh);color:var(--text);';
+  renderByView();
+}
 function init(){
   const ySel=document.getElementById('yearSel'),mSel=document.getElementById('monthSel');
   // 2026~2027년 1월까지 지원
