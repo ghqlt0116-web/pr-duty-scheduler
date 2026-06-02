@@ -479,21 +479,26 @@ function getActiveOrder(ds,dtype){
   const order=ORDERS[typeof dtype==='string'?dtype:dtype];
   return order.filter(n=>{const m=ST.members.find(x=>x.name===n);return m&&!m.deletedAt&&ym>=m.joinDate;});
 }
-function buildScheduleRange(startY,startM,endY,endM){
-  // 시작월부터 종료월까지 모든 날짜 스케줄 생성 (autoSwap 없이)
-  if(startY<2026||(startY===2026&&startM<9))return[];
+function buildSchedule(y,m){
+  if(y<2026||(y===2026&&m<9))return[];
+  // SEP_IDX부터 9월 시작까지 소진
   const idx=Object.assign({},SEP_IDX);
-  let c=new Date(2026,8,1);const target=new Date(startY,startM-1,1);
+  let c=new Date(2026,8,1);const target=new Date(y,m-1,1);
   while(c<target){
     const ds=fmt(c),dtype=getDtype(ds);
-    if(dtype!==null){const ik=typeof dtype==='string'?1:dtype;if(getActiveOrder(ds,dtype).length>0)idx[ik]++;}
+    if(dtype!==null){
+      const ik2=typeof dtype==='string'?1:dtype;
+      if(getActiveOrder(ds,dtype).length>0)idx[ik2]++;
+    }
     c.setDate(c.getDate()+1);
   }
-  const result=[];const d=new Date(startY,startM-1,1);const end=new Date(endY,endM,0);
-  while(d<=end){
+  // 당월 스케줄 생성
+  const result=[];
+  const d=new Date(y,m-1,1);
+  while(d.getMonth()===m-1){
     const ds=fmt(d),dtype=getDtype(ds);
     if(dtype!==null){
-      const ik=typeof dtype==='string'?1:dtype;
+      const ik2=typeof dtype==='string'?1:dtype;
       const ao=getActiveOrder(ds,dtype);
       if(ao.length>0){
         let member,isOvr=false,origMember=null,swapNote=null,swapDate=null;
@@ -501,31 +506,27 @@ function buildScheduleRange(startY,startM,endY,endM){
         if(ovrObj){
           member=typeof ovrObj==='object'?ovrObj.member:ovrObj;
           swapNote=ovrObj.swapNote||null;swapDate=ovrObj.swapDate||null;isOvr=true;
-          const base=ao[idx[ik]%ao.length];if(base!==member)origMember=base;
+          const base=ao[idx[ik2]%ao.length];if(base!==member)origMember=base;
         }else{
           let assigned=null;
-          for(let i=0;i<ao.length;i++){const cand=ao[(idx[ik]+i)%ao.length];if(!isAbsent(cand,ds)){if(i>0)origMember=ao[idx[ik]%ao.length];assigned=cand;break;}}
-          member=assigned||ao[idx[ik]%ao.length];
+          for(let i=0;i<ao.length;i++){
+            const cand=ao[(idx[ik2]+i)%ao.length];
+            if(!isAbsent(cand,ds)){if(i>0)origMember=ao[idx[ik2]%ao.length];assigned=cand;break;}
+          }
+          member=assigned||ao[idx[ik2]%ao.length];
         }
-        result.push({date:ds,day:d.getDate(),month:d.getMonth()+1,year:d.getFullYear(),dtype,member,isOvr,origMember,swapNote,swapDate,autoSwapped:false,swapWith:null,consec:false,dow:d.getDay()});
-        idx[ik]++;
+        result.push({date:ds,day:d.getDate(),month:m,year:y,dtype,member,
+                     isOvr,origMember,swapNote,swapDate,
+                     autoSwapped:false,swapWith:null,consec:false,dow:d.getDay()});
+        idx[ik2]++;
       }
     }
     d.setDate(d.getDate()+1);
   }
+  autoSwap(result);
   return result;
 }
-function buildSchedule(y,m){
-  if(y<2026||(y===2026&&m<9))return[];
-  // 전달, 당월, 다음달 포함해서 생성 → 달 경계 연속당직 교체 가능
-  let pY=y,pM=m-1;if(pM<1){pM=12;pY--;}
-  let nY=y,nM=m+1;if(nM>12){nM=1;nY++;}
-  const startY=(pY<2026||(pY===2026&&pM<9))?y:pY;
-  const startM=(pY<2026||(pY===2026&&pM<9))?m:pM;
-  const extended=buildScheduleRange(startY,startM,nY,nM);
-  autoSwap(extended);
-  return extended.filter(s=>s.year===y&&s.month===m);
-}
+
 function autoSwap(result){
   const NO_SWAP=new Set(['1a','1b',6]);
   function ik(dt){return typeof dt==='string'?1:dt;}
