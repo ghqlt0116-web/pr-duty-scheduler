@@ -531,30 +531,31 @@ function autoSwap(result){
   const NO_SWAP=new Set(['1a','1b',6]);
   function ik(dt){return typeof dt==='string'?1:dt;}
   function canSwap(dtype){return!NO_SWAP.has(dtype);}
-  function daysDiff(a,b){return Math.abs((new Date(a.date+'T00:00:00')-new Date(b.date+'T00:00:00'))/86400000);}
+  function dateDiff(a,b){
+    return Math.abs((new Date(a+'T00:00:00')-new Date(b+'T00:00:00'))/86400000);
+  }
   function isTue(ds){return new Date(ds+'T00:00:00').getDay()===2;}
 
-  function wouldConsec(result,ai,bi,newA,newB){
+  // 교체 가능 여부 + 교체 후 연속 발생 여부 체크
+  function safeSwap(i,j){
+    const a=result[i],b=result[j];
+    if(!a||!b) return false;
+    if(a.autoSwapped||b.autoSwapped) return false;
+    if(!canSwap(a.dtype)||!canSwap(b.dtype)) return false;
+    if(ik(a.dtype)!==ik(b.dtype)) return false;
+    if(b.member==='신민경'&&isTue(a.date)) return false;
+    if(a.member==='신민경'&&isTue(b.date)) return false;
     const n=result.length;
-    const ap=ai>0?result[ai-1]:null;
-    const an=ai+1<n&&ai+1!==bi?result[ai+1]:null;
-    const bp=bi>0&&bi-1!==ai?result[bi-1]:null;
-    const bn=bi+1<n?result[bi+1]:null;
-    if(ap&&daysDiff(result[ai],ap)<=1&&ap.member===newA)return true;
-    if(an&&daysDiff(an,result[ai])<=1&&an.member===newA)return true;
-    if(bp&&daysDiff(result[bi],bp)<=1&&bp.member===newB)return true;
-    if(bn&&daysDiff(bn,result[bi])<=1&&bn.member===newB)return true;
-    return false;
-  }
-
-  function trySwap(result,ai,bi){
-    const a=result[ai],b=result[bi];
-    if(a.autoSwapped||b.autoSwapped)return false;
-    if(!canSwap(a.dtype)||!canSwap(b.dtype))return false;
-    if(ik(a.dtype)!==ik(b.dtype))return false;
-    if(b.member==='신민경'&&isTue(a.date))return false;
-    if(a.member==='신민경'&&isTue(b.date))return false;
-    if(wouldConsec(result,ai,bi,b.member,a.member))return false;
+    // i 자리에 b.member: 앞(i-1, j가 아닌 것만), 뒤(i+1, j가 아닌 것만)
+    const ip=i>0&&i-1!==j?result[i-1]:null;
+    const in_=i+1<n&&i+1!==j?result[i+1]:null;
+    if(ip&&dateDiff(a.date,ip.date)<=1&&ip.member===b.member) return false;
+    if(in_&&dateDiff(in_.date,a.date)<=1&&in_.member===b.member) return false;
+    // j 자리에 a.member: 앞(j-1, i가 아닌 것만), 뒤(j+1, i가 아닌 것만)
+    const jp=j>0&&j-1!==i?result[j-1]:null;
+    const jn=j+1<n&&j+1!==i?result[j+1]:null;
+    if(jp&&dateDiff(b.date,jp.date)<=1&&jp.member===a.member) return false;
+    if(jn&&dateDiff(jn.date,b.date)<=1&&jn.member===a.member) return false;
     const t=a.member;a.member=b.member;b.member=t;
     a.autoSwapped=true;a.swapWith=b.date;
     b.autoSwapped=true;b.swapWith=a.date;
@@ -566,41 +567,49 @@ function autoSwap(result){
     const s=result[i];
     if(s.member!=='신민경'||!isTue(s.date)||!canSwap(s.dtype)) continue;
     const k=ik(s.dtype);
+    // 바로 앞날(i-1)부터 탐색
     let done=false;
     for(let j=i-1;j>=Math.max(0,i-14)&&!done;j--)
-      if(ik(result[j].dtype)===k) done=trySwap(result,i,j);
+      if(ik(result[j].dtype)===k) done=safeSwap(i,j);
     if(!done)
       for(let j=i+1;j<Math.min(result.length,i+14)&&!done;j++)
-        if(ik(result[j].dtype)===k) done=trySwap(result,i,j);
+        if(ik(result[j].dtype)===k) done=safeSwap(i,j);
   }
 
-  // ── 2단계: 연속당직 교체 (3패스) ──
+  // ── 2단계: 연속당직 교체 ──
   for(let pass=0;pass<3;pass++){
+    // 연속 감지
     result.forEach(s=>{s.consec=false;});
     for(let i=1;i<result.length;i++){
       const p=result[i-1],c=result[i];
-      if(daysDiff(p,c)<=1&&p.member===c.member){p.consec=true;c.consec=true;}
+      if(dateDiff(p.date,c.date)===1&&p.member===c.member){
+        p.consec=true;c.consec=true;
+      }
     }
     let changed=false;
     for(let i=1;i<result.length;i++){
       const p=result[i-1],c=result[i];
-      if(!(p.consec&&c.consec))continue;
+      if(!(p.consec&&c.consec)) continue;
+      // 앞날짜(p) 교체 우선
       let done=false;
-      if(canSwap(p.dtype))
+      if(canSwap(p.dtype)){
         for(let j=i-2;j>=Math.max(0,i-14)&&!done;j--)
-          if(ik(result[j].dtype)===ik(p.dtype)){done=trySwap(result,i-1,j);if(done)changed=true;}
-      if(!done&&canSwap(c.dtype))
+          if(ik(result[j].dtype)===ik(p.dtype)){done=safeSwap(i-1,j);if(done)changed=true;}
+      }
+      // 뒤날짜(c) 교체
+      if(!done&&canSwap(c.dtype)){
         for(let j=i+1;j<Math.min(result.length,i+14)&&!done;j++)
-          if(ik(result[j].dtype)===ik(c.dtype)){done=trySwap(result,i,j);if(done)changed=true;}
+          if(ik(result[j].dtype)===ik(c.dtype)){done=safeSwap(i,j);if(done)changed=true;}
+      }
     }
-    if(!changed)break;
+    if(!changed) break;
   }
 
   // 최종 연속 체크
   result.forEach(s=>{s.consec=false;});
   for(let i=1;i<result.length;i++){
     const p=result[i-1],c=result[i];
-    if(daysDiff(p,c)<=1&&p.member===c.member){p.consec=true;c.consec=true;}
+    if(dateDiff(p.date,c.date)===1&&p.member===c.member){p.consec=true;c.consec=true;}
   }
 }
 function renderLegend(){
