@@ -845,39 +845,23 @@ async function saveHolEdit(id){
   try{await api.updateHoliday(id,{name});setSS('ok','저장됨');await loadAll();}catch(e){setSS('err','저장 실패');}
 }
 function renderCompare(){
-  const members=['손정모','신동석','신민경','유시화','이홍연','조현우','최승훈','한수연'];
-  const months=['2026-09','2026-10','2026-11','2026-12','2027-01'];
-  const typeNames={'1a':'일반 공휴일',2:'WF 전날 가판',5:'평일',3:'WF 당일 가판',4:'금요일',6:'대체/금 공휴'};
-  const typeCls={'1a':'dt1a',2:'dt2',5:'dt5',3:'dt3',4:'dt4',6:'dt6'};
+  const MEMBERS=['손정모','신동석','신민경','유시화','이홍연','조현우','최승훈','한수연'];
+  const MONTHS=[['2026-09','9월'],['2026-10','10월'],['2026-11','11월'],['2026-12','12월'],['2027-01','1월']];
   const ORDERS_CMP_OLD={
     '1a':['신민경','손정모','한수연','이홍연','유시화','조현우','최승훈','신동석'],
+    '1b':['신민경','손정모','한수연','이홍연','유시화','조현우','최승훈','신동석'],
     2:   ['손정모','한수연','이홍연','유시화','조현우','최승훈','신동석','신민경'],
     5:   ['이홍연','신민경','한수연','최승훈','유시화','손정모','조현우','신동석'],
     3:   ['최승훈','손정모','신민경','한수연','유시화','이홍연','신동석','조현우'],
     4:   ['이홍연','손정모','최승훈','신동석','조현우','신민경','한수연','유시화'],
     6:   ['신동석','이홍연','신민경','한수연','최승훈','유시화','손정모','조현우'],
   };
+  const SEP_OLD={1:0,2:0,3:0,4:0,5:0,6:0};
 
-  // 순번 비교 테이블
-  let ordersRows='';
-  [['1a','일반 공휴일'],['2','WF 전날 가판'],['5','평일'],['3','WF 당일 가판'],['4','금요일'],['6','대체/금 공휴']].forEach(([t,name])=>{
-    const key=isNaN(t)?t:parseInt(t);
-    const oldO=ORDERS_CMP_OLD[key]||ORDERS_CMP_OLD['1a'];
-    const newO=ORDERS_NEW[key]||ORDERS_NEW['1a'];
-    const oldStr=oldO.map(n=>`<span style="font-size:11px;padding:1px 6px;border-radius:3px;background:var(--bg2);margin:1px">${n}</span>`).join(' ');
-    const newStr=newO.map(n=>`<span style="font-size:11px;padding:1px 6px;border-radius:3px;background:var(--bg2);margin:1px">${n}</span>`).join(' ');
-    ordersRows+=`<tr>
-      <td><span class="badge ${typeCls[key]||'dt5'}" style="font-size:11px">${name}</span></td>
-      <td style="line-height:2">${oldStr}</td>
-      <td style="line-height:2">${newStr}</td>
-    </tr>`;
-  });
-  document.getElementById('compareOrdersBody').innerHTML=ordersRows;
-
-  // 월별 횟수 계산
-  function buildSchedSimple(orders,sepIdx){
+  function buildSched(orders,sepIdx){
     const idx=Object.assign({},sepIdx);
-    const result=[];
+    const result={};
+    MONTHS.forEach(([ym])=>{result[ym]={};MEMBERS.forEach(m=>{result[ym][m]=0;});});
     let d=new Date(2026,8,1);
     const endD=new Date(2027,1,1);
     while(d<endD){
@@ -886,10 +870,9 @@ function renderCompare(){
         const ik2=typeof dtype==='string'?1:dtype;
         const order=orders[dtype]||orders['1a']||[];
         const ym=ds.slice(0,7);
-        const active=order.filter(n=>{const m=ST.members.find(x=>x.name===n);return m&&!m.deletedAt&&ym>=m.joinDate;});
-        if(active.length>0){
-          const member=active[idx[ik2]%active.length];
-          result.push({date:ds,month:d.getMonth()+1,year:d.getFullYear(),member});
+        if(result[ym]&&order.length>0){
+          const member=order[idx[ik2]%order.length];
+          if(result[ym][member]!==undefined) result[ym][member]++;
           idx[ik2]=(idx[ik2]||0)+1;
         }
       }
@@ -898,99 +881,150 @@ function renderCompare(){
     return result;
   }
 
-  const schedOld=buildSchedSimple(ORDERS_CMP_OLD,{1:0,2:0,3:0,4:0,5:0,6:0});
-  const schedNew=buildSchedSimple(ORDERS_NEW,SEP_IDX_NEW);
+  const co=buildSched(ORDERS_CMP_OLD,SEP_OLD);
+  const cn=buildSched(ORDERS_NEW,SEP_IDX_NEW);
 
-  function countBy(sched){
-    const c={};
-    sched.forEach(s=>{
-      const ym=s.year+'-'+String(s.month).padStart(2,'0');
-      if(!c[ym])c[ym]={};
-      c[ym][s.member]=(c[ym][s.member]||0)+1;
-    });
-    return c;
-  }
-  const co=countBy(schedOld),cn=countBy(schedNew);
-
-  // 월별 테이블 헤더
-  let thead=`<tr><th style="text-align:left">월/이름</th>`;
-  members.forEach(m=>thead+=`<th>${m.slice(0,2)}</th>`);
-  thead+=`<th>편차</th></tr>`;
-  document.getElementById('compareMonthHead').innerHTML=thead;
-
-  // 월별 테이블 바디
-  let tbody='';
   const totalOld={},totalNew={};
-  members.forEach(m=>{totalOld[m]=0;totalNew[m]=0;});
-
-  months.forEach(ym=>{
-    const mo=parseInt(ym.slice(5));
-    const yr=parseInt(ym.slice(0,4));
-    // 기존 행
-    const ovalsArr=members.map(m=>co[ym]?co[ym][m]||0:0);
-    const omx=Math.max(...ovalsArr),omn=Math.min(...ovalsArr.filter(v=>v>0)||[0]);
-    let oldRow=`<tr><td style="font-size:11px;color:var(--text2)">${mo}월 기존</td>`;
-    ovalsArr.forEach((v,i)=>{
-      const color=v===omx?'color:var(--red);font-weight:700':'';
-      oldRow+=`<td style="background:#EFF6FF;${color}">${v}</td>`;
-      totalOld[members[i]]+=v;
-    });
-    oldRow+=`<td style="background:#EFF6FF;font-size:11px">${omx-omn}</td></tr>`;
-
-    // 개선 행
-    const nvalsArr=members.map(m=>cn[ym]?cn[ym][m]||0:0);
-    const nmx=Math.max(...nvalsArr),nmn=Math.min(...nvalsArr.filter(v=>v>0)||[0]);
-    let newRow=`<tr><td style="font-size:11px;color:var(--text2)">${mo}월 개선</td>`;
-    nvalsArr.forEach((v,i)=>{
-      const color=v===nmx?'color:var(--red);font-weight:700':'';
-      newRow+=`<td style="background:#F0FAF4;${color}">${v}</td>`;
-      totalNew[members[i]]+=v;
-    });
-    newRow+=`<td style="background:#F0FAF4;font-size:11px">${nmx-nmn}</td></tr>`;
-
-    tbody+=oldRow+newRow+`<tr><td colspan="${members.length+2}" style="height:4px;background:var(--bg2)"></td></tr>`;
+  MEMBERS.forEach(m=>{totalOld[m]=0;totalNew[m]=0;});
+  MONTHS.forEach(([ym])=>{
+    MEMBERS.forEach(m=>{totalOld[m]+=(co[ym]?co[ym][m]||0:0);totalNew[m]+=(cn[ym]?cn[ym][m]||0:0);});
   });
 
-  // 합계 행
-  const otArr=members.map(m=>totalOld[m]);
-  const ntArr=members.map(m=>totalNew[m]);
-  const omx=Math.max(...otArr),omn=Math.min(...otArr);
-  const nmx=Math.max(...ntArr),nmn=Math.min(...ntArr);
-  let oldTotal=`<tr style="font-weight:700"><td>합계 기존</td>`;
-  otArr.forEach(v=>oldTotal+=`<td style="background:#EFF6FF">${v}</td>`);
-  oldTotal+=`<td style="background:#EFF6FF;color:var(--red)">${omx-omn}</td></tr>`;
-  let newTotal=`<tr style="font-weight:700"><td>합계 개선</td>`;
-  ntArr.forEach(v=>newTotal+=`<td style="background:#F0FAF4">${v}</td>`);
-  newTotal+=`<td style="background:#F0FAF4;color:var(--green)">${nmx-nmn}</td></tr>`;
-  tbody+=oldTotal+newTotal;
-  document.getElementById('compareMonthBody').innerHTML=tbody;
+  const typeMeta=[
+    {key:'1a',label:'일반 공휴일',cls:'dt1a'},
+    {key:2,label:'WF 전날 가판',cls:'dt2'},
+    {key:5,label:'평일',cls:'dt5'},
+    {key:3,label:'WF 당일 가판',cls:'dt3'},
+    {key:4,label:'금요일',cls:'dt4'},
+    {key:6,label:'대체/금 공휴',cls:'dt6'},
+  ];
 
-  // 총합 바 차트
-  const maxT=Math.max(...otArr,...ntArr);
-  let bars='';
-  members.forEach(m=>{
-    const o=totalOld[m],n=totalNew[m];
-    bars+=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:7px">
-      <div style="min-width:52px;font-size:12px;font-weight:500">${m}</div>
-      <div style="flex:1;display:flex;flex-direction:column;gap:3px">
-        <div style="display:flex;align-items:center;gap:6px">
-          <div style="width:${Math.round(o/maxT*200)}px;height:14px;background:#B5D4F4;border-radius:2px;transition:width .3s"></div>
-          <span style="font-size:11px;color:var(--text2)">${o}회</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:6px">
-          <div style="width:${Math.round(n/maxT*200)}px;height:14px;background:#5DCAA5;border-radius:2px;transition:width .3s"></div>
-          <span style="font-size:11px;color:var(--text2)">${n}회</span>
-        </div>
+  const maxT=Math.max(...MEMBERS.map(m=>Math.max(totalOld[m],totalNew[m])));
+  const otArr=MEMBERS.map(m=>totalOld[m]);
+  const ntArr=MEMBERS.map(m=>totalNew[m]);
+  const omxDiff=Math.max(...otArr)-Math.min(...otArr);
+  const nmxDiff=Math.max(...ntArr)-Math.min(...ntArr);
+
+  const el=document.getElementById('viewCompare');
+  el.innerHTML=`
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:18px">
+    <div class="stat-card"><div class="stat-label">기존 총합 격차</div><div class="stat-val" style="color:var(--red)">${omxDiff}회</div><div class="stat-sub">${Math.min(...otArr)}~${Math.max(...otArr)}회</div></div>
+    <div class="stat-card"><div class="stat-label">개선 총합 격차</div><div class="stat-val" style="color:var(--green)">${nmxDiff}회</div><div class="stat-sub">${Math.min(...ntArr)}~${Math.max(...ntArr)}회</div></div>
+    <div class="stat-card"><div class="stat-label">개선 효과</div><div class="stat-val">${omxDiff-nmxDiff}회 ↓</div><div class="stat-sub">총합 기준</div></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px">
+    <!-- 총합 바 차트 -->
+    <div>
+      <div class="section-title" style="margin-bottom:10px">5개월 총합 비교</div>
+      <div style="display:flex;gap:12px;margin-bottom:10px;font-size:11px;color:var(--text2)">
+        <span><span style="display:inline-block;width:10px;height:10px;background:#B5D4F4;border-radius:2px;vertical-align:middle;margin-right:4px"></span>기존</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:#5DCAA5;border-radius:2px;vertical-align:middle;margin-right:4px"></span>개선</span>
       </div>
-    </div>`;
-  });
-  document.getElementById('compareTotalBars').innerHTML=bars;
+      ${MEMBERS.map(m=>{
+        const o=totalOld[m],n=totalNew[m];
+        return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+          <div style="min-width:48px;font-size:12px;font-weight:600">${m}</div>
+          <div style="flex:1">
+            <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px">
+              <div style="width:${Math.round(o/maxT*160)}px;height:13px;background:#B5D4F4;border-radius:2px"></div>
+              <span style="font-size:11px;color:var(--text2)">${o}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:5px">
+              <div style="width:${Math.round(n/maxT*160)}px;height:13px;background:#5DCAA5;border-radius:2px"></div>
+              <span style="font-size:11px;color:var(--text2)">${n}</span>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
 
-  // 요약 카드
-  document.getElementById('compareSummary').innerHTML=`
-    <div class="stat-card"><div class="stat-label">기존 총합 격차</div><div class="stat-val" style="color:var(--red)">${omx-omn}회</div><div class="stat-sub">${omn}~${omx}회</div></div>
-    <div class="stat-card"><div class="stat-label">개선 총합 격차</div><div class="stat-val" style="color:var(--green)">${nmx-nmn}회</div><div class="stat-sub">${nmn}~${nmx}회</div></div>
-    <div class="stat-card"><div class="stat-label">개선 효과</div><div class="stat-val">${omx-omn-(nmx-nmn)}회 ↓</div><div class="stat-sub">총합 기준</div></div>
+    <!-- 월별 편차 -->
+    <div>
+      <div class="section-title" style="margin-bottom:10px">월별 최대-최소 편차</div>
+      <div style="display:flex;gap:12px;margin-bottom:10px;font-size:11px;color:var(--text2)">
+        <span><span style="display:inline-block;width:10px;height:10px;background:#B5D4F4;border-radius:2px;vertical-align:middle;margin-right:4px"></span>기존</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:#5DCAA5;border-radius:2px;vertical-align:middle;margin-right:4px"></span>개선</span>
+      </div>
+      ${MONTHS.map(([ym,label])=>{
+        const ov=MEMBERS.map(m=>co[ym]?co[ym][m]||0:0).filter(v=>v>0);
+        const nv=MEMBERS.map(m=>cn[ym]?cn[ym][m]||0:0).filter(v=>v>0);
+        const od=ov.length?Math.max(...ov)-Math.min(...ov):0;
+        const nd=nv.length?Math.max(...nv)-Math.min(...nv):0;
+        const maxD=5;
+        return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+          <div style="min-width:30px;font-size:12px;font-weight:600">${label}</div>
+          <div style="flex:1">
+            <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px">
+              <div style="width:${Math.round(od/maxD*140)}px;height:13px;background:#B5D4F4;border-radius:2px"></div>
+              <span style="font-size:11px;color:var(--text2)">${od}회</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:5px">
+              <div style="width:${Math.round(nd/maxD*140)}px;height:13px;background:#5DCAA5;border-radius:2px"></div>
+              <span style="font-size:11px;color:var(--text2)">${nd}회</span>
+              ${nd<od?'<span style="font-size:10px;color:var(--green)">▼'+(od-nd)+'</span>':nd>od?'<span style="font-size:10px;color:var(--red)">▲'+(nd-od)+'</span>':''}
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>
+
+  <!-- 순번 비교 -->
+  <div class="section-title" style="margin-bottom:8px">유형별 순번 비교</div>
+  <table class="dtable" style="margin-bottom:18px">
+    <thead><tr><th>유형</th><th>기존 순번</th><th>개선 순번</th></tr></thead>
+    <tbody>
+      ${typeMeta.map(({key,label,cls})=>{
+        const oldO=(ORDERS_CMP_OLD[key]||ORDERS_CMP_OLD['1a']).map(n=>`<span style="font-size:11px;padding:1px 6px;border-radius:3px;background:var(--bg2);display:inline-block;margin:1px">${n}</span>`).join(' ');
+        const newO=(ORDERS_NEW[key]||ORDERS_NEW['1a']).map(n=>`<span style="font-size:11px;padding:1px 6px;border-radius:3px;background:var(--bg2);display:inline-block;margin:1px">${n}</span>`).join(' ');
+        return `<tr><td><span class="badge ${cls}" style="font-size:11px">${label}</span></td><td style="line-height:2">${oldO}</td><td style="line-height:2">${newO}</td></tr>`;
+      }).join('')}
+    </tbody>
+  </table>
+
+  <!-- 월별 상세 -->
+  <div class="section-title" style="margin-bottom:8px">월별 인당 당직 횟수 상세</div>
+  <div style="overflow-x:auto">
+    <table class="dtable" style="min-width:580px">
+      <thead>
+        <tr>
+          <th style="text-align:left">월/구분</th>
+          ${MEMBERS.map(m=>`<th>${m.slice(0,2)}</th>`).join('')}
+          <th>편차</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${MONTHS.map(([ym,label])=>{
+          const ov=MEMBERS.map(m=>co[ym]?co[ym][m]||0:0);
+          const nv=MEMBERS.map(m=>cn[ym]?cn[ym][m]||0:0);
+          const omx=Math.max(...ov),onm=Math.min(...ov.filter(v=>v>0)||[0]);
+          const nmx=Math.max(...nv),nnm=Math.min(...nv.filter(v=>v>0)||[0]);
+          const oldRow=`<tr>
+            <td style="font-size:11px;color:var(--text2)">${label} 기존</td>
+            ${ov.map(v=>`<td style="background:#EFF6FF;${v===omx?'color:var(--red);font-weight:700':''}">${v}</td>`).join('')}
+            <td style="background:#EFF6FF;font-size:11px">${omx-onm}</td>
+          </tr>`;
+          const newRow=`<tr>
+            <td style="font-size:11px;color:var(--text2)">${label} 개선</td>
+            ${nv.map(v=>`<td style="background:#F0FAF4;${v===nmx?'color:var(--red);font-weight:700':''}">${v}</td>`).join('')}
+            <td style="background:#F0FAF4;font-size:11px">${nmx-nnm}</td>
+          </tr>`;
+          return oldRow+newRow+`<tr><td colspan="${MEMBERS.length+2}" style="height:3px;background:var(--bg2)"></td></tr>`;
+        }).join('')}
+        <tr style="font-weight:700;border-top:1px solid var(--border)">
+          <td>합계 기존</td>
+          ${MEMBERS.map(m=>`<td style="background:#EFF6FF">${totalOld[m]}</td>`).join('')}
+          <td style="background:#EFF6FF;color:var(--red)">${omxDiff}</td>
+        </tr>
+        <tr style="font-weight:700">
+          <td>합계 개선</td>
+          ${MEMBERS.map(m=>`<td style="background:#F0FAF4">${totalNew[m]}</td>`).join('')}
+          <td style="background:#F0FAF4;color:var(--green)">${nmxDiff}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
   `;
 }
 
