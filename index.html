@@ -166,6 +166,7 @@ body{font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;ba
     </div>
     <div class="legend" id="legend"></div>
     <div id="calNotice"></div>
+    <div id="memberCount" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;"></div>
     <div class="cal" id="calGrid"></div>
     <p style="font-size:13px;color:var(--text3);margin-top:8px">📌 날짜 클릭 → 수정 &nbsp;·&nbsp; ⚠ 빨간: 연속당직 &nbsp;·&nbsp; 🟡 노란테두리: 상호스왑 &nbsp;·&nbsp; 🟢 초록테두리: 담당자변경</p>
   </div>
@@ -693,6 +694,20 @@ function renderCal(){
     }
   }
   document.getElementById('calGrid').innerHTML=h;
+
+  // 인원별 당직 횟수
+  const counts={};
+  sched.forEach(s=>{counts[s.member]=(counts[s.member]||0)+1;});
+  const active=ST.members.filter(mb=>!mb.deletedAt&&fmtYM(y,m)>=mb.joinDate);
+  const countHtml=active.map(mb=>{
+    const c=counts[mb.name]||0;
+    return `<div style="display:flex;align-items:center;gap:5px;padding:4px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:20px;font-size:12px;">
+      <div style="width:8px;height:8px;border-radius:50%;background:${mb.color};border:1px solid ${mb.tc}"></div>
+      <span style="font-weight:600">${mb.name}</span>
+      <span style="color:var(--text3)">${c}회</span>
+    </div>`;
+  }).join('');
+  document.getElementById('memberCount').innerHTML=countHtml;
 }
 function renderMembers(){
   const active=ST.members.filter(m=>!m.deletedAt),deleted=ST.members.filter(m=>m.deletedAt);
