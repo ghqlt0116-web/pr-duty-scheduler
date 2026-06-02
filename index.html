@@ -431,44 +431,53 @@ function nextDs(ds){const d=new Date(ds+'T00:00:00');d.setDate(d.getDate()+1);re
 function getWFDays(y,m){const fris=[],d=new Date(y,m-1,1);while(d.getMonth()===m-1){if(d.getDay()===5)fris.push(fmt(d));d.setDate(d.getDate()+1);}return[fris[1],fris[3]].filter(Boolean);}
 function getDtype(ds){
   const d=new Date(ds+'T00:00:00'),dow=d.getDay();
-  const nd=nextDs(ds),ndDow=new Date(nd+'T00:00:00').getDay();
+  const nd=nextDs(ds);
 
   // 토요일: 당직 없음
   if(dow===6) return null;
 
-  // 임시공휴일/회사자체휴일: 다음날 기준
-  if(isTempHol(ds)){
-    // 다음날이 쉬는날이면 6번, 평일이면 1a
+  // 설날/추석 이름 확인
+  const holInfo=getHol(ds);
+  const holName=holInfo?holInfo.name:null;
+  const lunarEntry=getLunarHolidays().find(([d2])=>d2===ds);
+  const lunarName=lunarEntry?lunarEntry[1]:null;
+  const name=holName||lunarName||null;
+
+  // 설날 전날·당일, 추석 전날·당일 → 당직 없음
+  if(name==='설날 전날'||name==='추석 전날'||name==='설날'||name==='추석'){
+    return null;
+  }
+
+  // 설날 다음날·추석 다음날 → 일반공휴일처럼 처리 (다음날 기준)
+  if(name==='설날 다음날'||name==='추석 다음날'){
     return isOff(nd)?6:'1a';
   }
 
-  // 창립기념일(9/23): 다음날 기준
-  if(isAnniversary(ds)){
+  // 임시공휴일/창립기념일
+  if(isTempHol(ds)||isAnniversary(ds)){
     return isOff(nd)?6:'1a';
   }
 
   // 일요일 or 법정공휴일
   if(dow===0||isHoliday(ds)){
-    // 다음날이 쉬는날(토/일/공휴/임시공휴)이면 → 6번(대체/금공휴)
     return isOff(nd)?6:'1a';
   }
 
-  // WF 전날 목요일 (단, 다음날 WF가 공휴일이면 그냥 평일)
+  // WF 전날 목요일
   if(dow===4){
     const ndd=new Date(nd+'T00:00:00');
     const wfs=getWFDays(ndd.getFullYear(),ndd.getMonth()+1);
     if(wfs.includes(nd)&&!isOff(nd)) return 2;
   }
 
-  // WF 당일 (공휴일이면 WF Day 아님 → 금요일)
+  // WF 당일 (공휴일이면 WF 아님)
   const wfs=getWFDays(d.getFullYear(),d.getMonth()+1);
   if(wfs.includes(ds)&&!isOff(ds)) return 3;
 
-  // 금요일: 다음날이 토요일이므로 → 6번(대체/금공휴)
+  // 금요일 → 6번
   if(dow===5) return 6;
 
-  // 평일(월~목): 다음날이 쉬는날이면 → 6번(가판만)
-  // (예: 수요일인데 다음날 창립기념일/임시공휴일)
+  // 평일인데 다음날 쉬는날 → 6번
   if(isOff(nd)) return 6;
 
   return 5;
