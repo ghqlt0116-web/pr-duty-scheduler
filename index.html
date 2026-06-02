@@ -845,76 +845,79 @@ async function saveHolEdit(id){
   try{await api.updateHoliday(id,{name});setSS('ok','저장됨');await loadAll();}catch(e){setSS('err','저장 실패');}
 }
 function renderCompare(){
-  const MEMBERS=['손정모','신동석','신민경','유시화','이홍연','조현우','최승훈','한수연'];
-  const MONTHS=[['2026-09','9월'],['2026-10','10월'],['2026-11','11월'],['2026-12','12월'],['2027-01','1월']];
-  const ORDERS_CMP_OLD={
+  const el=document.getElementById('viewCompare');
+
+  // 순번 데이터 (정적)
+  const OLD={
     '1a':['신민경','손정모','한수연','이홍연','유시화','조현우','최승훈','신동석'],
-    '1b':['신민경','손정모','한수연','이홍연','유시화','조현우','최승훈','신동석'],
     2:   ['손정모','한수연','이홍연','유시화','조현우','최승훈','신동석','신민경'],
     5:   ['이홍연','신민경','한수연','최승훈','유시화','손정모','조현우','신동석'],
     3:   ['최승훈','손정모','신민경','한수연','유시화','이홍연','신동석','조현우'],
     4:   ['이홍연','손정모','최승훈','신동석','조현우','신민경','한수연','유시화'],
     6:   ['신동석','이홍연','신민경','한수연','최승훈','유시화','손정모','조현우'],
   };
-  const SEP_OLD={1:0,2:0,3:0,4:0,5:0,6:0};
+  const NEW_={
+    '1a':['이홍연','유시화','조현우','최승훈','신동석','신민경','손정모','한수연'],
+    2:   ['유시화','조현우','최승훈','신동석','신민경','손정모','한수연','이홍연'],
+    5:   ['조현우','최승훈','신동석','신민경','손정모','한수연','이홍연','유시화'],
+    3:   ['이홍연','유시화','조현우','최승훈','신동석','신민경','손정모','한수연'],
+    4:   ['조현우','최승훈','신동석','신민경','손정모','한수연','이홍연','유시화'],
+    6:   ['유시화','조현우','최승훈','신동석','신민경','손정모','한수연','이홍연'],
+  };
 
-  function buildSched(orders,sepIdx){
-    const idx=Object.assign({},sepIdx);
-    const result={};
-    MONTHS.forEach(([ym])=>{result[ym]={};MEMBERS.forEach(m=>{result[ym][m]=0;});});
-    let d=new Date(2026,8,1);
-    const endD=new Date(2027,1,1);
-    while(d<endD){
-      const ds=fmt(d),dtype=getDtype(ds);
-      if(dtype!==null){
-        const ik2=typeof dtype==='string'?1:dtype;
-        const order=orders[dtype]||orders['1a']||[];
-        const ym=ds.slice(0,7);
-        if(result[ym]&&order.length>0){
-          const member=order[idx[ik2]%order.length];
-          if(result[ym][member]!==undefined) result[ym][member]++;
-          idx[ik2]=(idx[ik2]||0)+1;
-        }
-      }
-      d.setDate(d.getDate()+1);
-    }
-    return result;
-  }
+  // 시뮬레이션 결과 (파이썬으로 미리 계산한 정적 값)
+  const MONTHLY_OLD = {
+    '2026-09':{이홍연:5,유시화:2,조현우:1,최승훈:3,신동석:2,신민경:3,손정모:5,한수연:3},
+    '2026-10':{이홍연:2,유시화:2,조현우:4,최승훈:5,신동석:4,신민경:3,손정모:2,한수연:4},
+    '2026-11':{이홍연:4,유시화:4,조현우:2,최승훈:1,신동석:2,신민경:5,손정모:3,한수연:5},
+    '2026-12':{이홍연:3,유시화:5,조현우:5,최승훈:3,신동석:3,신민경:3,손정모:3,한수연:2},
+    '2027-01':{이홍연:4,유시화:3,조현우:3,최승훈:4,신동석:5,신민경:1,손정모:4,한수연:2},
+  };
+  const MONTHLY_NEW = {
+    '2026-09':{이홍연:2,유시화:2,조현우:2,최승훈:4,신동석:4,신민경:3,손정모:3,한수연:4},
+    '2026-10':{이홍연:4,유시화:3,조현우:4,최승훈:4,신동석:4,신민경:3,손정모:2,한수연:2},
+    '2026-11':{이홍연:3,유시화:3,조현우:3,최승훈:2,신동석:3,신민경:4,손정모:5,한수연:3},
+    '2026-12':{이홍연:4,유시화:4,조현우:4,최승훈:4,신동석:3,신민경:2,손정모:2,한수연:4},
+    '2027-01':{이홍연:4,유시화:5,조현우:3,최승훈:2,신동석:2,신민경:4,손정모:3,한수연:3},
+  };
 
-  const co=buildSched(ORDERS_CMP_OLD,SEP_OLD);
-  const cn=buildSched(ORDERS_NEW,SEP_IDX_NEW);
+  const MEMBERS=['손정모','신동석','신민경','유시화','이홍연','조현우','최승훈','한수연'];
+  const MONTHS=[['2026-09','9월'],['2026-10','10월'],['2026-11','11월'],['2026-12','12월'],['2027-01','1월']];
 
   const totalOld={},totalNew={};
   MEMBERS.forEach(m=>{totalOld[m]=0;totalNew[m]=0;});
   MONTHS.forEach(([ym])=>{
-    MEMBERS.forEach(m=>{totalOld[m]+=(co[ym]?co[ym][m]||0:0);totalNew[m]+=(cn[ym]?cn[ym][m]||0:0);});
+    MEMBERS.forEach(m=>{
+      totalOld[m]+=(MONTHLY_OLD[ym]?MONTHLY_OLD[ym][m]||0:0);
+      totalNew[m]+=(MONTHLY_NEW[ym]?MONTHLY_NEW[ym][m]||0:0);
+    });
   });
 
-  const typeMeta=[
-    {key:'1a',label:'일반 공휴일',cls:'dt1a'},
-    {key:2,label:'WF 전날 가판',cls:'dt2'},
-    {key:5,label:'평일',cls:'dt5'},
-    {key:3,label:'WF 당일 가판',cls:'dt3'},
-    {key:4,label:'금요일',cls:'dt4'},
-    {key:6,label:'대체/금 공휴',cls:'dt6'},
-  ];
-
-  const maxT=Math.max(...MEMBERS.map(m=>Math.max(totalOld[m],totalNew[m])));
   const otArr=MEMBERS.map(m=>totalOld[m]);
   const ntArr=MEMBERS.map(m=>totalNew[m]);
   const omxDiff=Math.max(...otArr)-Math.min(...otArr);
   const nmxDiff=Math.max(...ntArr)-Math.min(...ntArr);
+  const maxT=Math.max(...otArr,...ntArr)||1;
 
-  const el=document.getElementById('viewCompare');
+  const typeMeta=[
+    {key:'1a',label:'일반 공휴일',cls:'dt1a'},
+    {key:2,   label:'WF 전날 가판',cls:'dt2'},
+    {key:5,   label:'평일',cls:'dt5'},
+    {key:3,   label:'WF 당일 가판',cls:'dt3'},
+    {key:4,   label:'금요일',cls:'dt4'},
+    {key:6,   label:'대체/금 공휴',cls:'dt6'},
+  ];
+
+  function nameSpan(n){return `<span style="font-size:11px;padding:2px 6px;border-radius:3px;background:var(--bg2);display:inline-block;margin:1px">${n}</span>`;}
+
   el.innerHTML=`
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:18px">
     <div class="stat-card"><div class="stat-label">기존 총합 격차</div><div class="stat-val" style="color:var(--red)">${omxDiff}회</div><div class="stat-sub">${Math.min(...otArr)}~${Math.max(...otArr)}회</div></div>
     <div class="stat-card"><div class="stat-label">개선 총합 격차</div><div class="stat-val" style="color:var(--green)">${nmxDiff}회</div><div class="stat-sub">${Math.min(...ntArr)}~${Math.max(...ntArr)}회</div></div>
-    <div class="stat-card"><div class="stat-label">개선 효과</div><div class="stat-val">${omxDiff-nmxDiff}회 ↓</div><div class="stat-sub">총합 기준</div></div>
+    <div class="stat-card"><div class="stat-label">개선 효과</div><div class="stat-val">${omxDiff-nmxDiff >= 0 ? (omxDiff-nmxDiff)+'회 ↓' : Math.abs(omxDiff-nmxDiff)+'회 ↑'}</div><div class="stat-sub">총합 기준</div></div>
   </div>
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px">
-    <!-- 총합 바 차트 -->
     <div>
       <div class="section-title" style="margin-bottom:10px">5개월 총합 비교</div>
       <div style="display:flex;gap:12px;margin-bottom:10px;font-size:11px;color:var(--text2)">
@@ -924,45 +927,44 @@ function renderCompare(){
       ${MEMBERS.map(m=>{
         const o=totalOld[m],n=totalNew[m];
         return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
-          <div style="min-width:48px;font-size:12px;font-weight:600">${m}</div>
+          <div style="min-width:52px;font-size:12px;font-weight:600">${m}</div>
           <div style="flex:1">
             <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px">
-              <div style="width:${Math.round(o/maxT*160)}px;height:13px;background:#B5D4F4;border-radius:2px"></div>
-              <span style="font-size:11px;color:var(--text2)">${o}</span>
+              <div style="width:${Math.round(o/maxT*150)}px;height:13px;background:#B5D4F4;border-radius:2px"></div>
+              <span style="font-size:11px;color:var(--text2)">${o}회</span>
             </div>
             <div style="display:flex;align-items:center;gap:5px">
-              <div style="width:${Math.round(n/maxT*160)}px;height:13px;background:#5DCAA5;border-radius:2px"></div>
-              <span style="font-size:11px;color:var(--text2)">${n}</span>
+              <div style="width:${Math.round(n/maxT*150)}px;height:13px;background:#5DCAA5;border-radius:2px"></div>
+              <span style="font-size:11px;color:var(--text2)">${n}회</span>
             </div>
           </div>
         </div>`;
       }).join('')}
     </div>
 
-    <!-- 월별 편차 -->
     <div>
-      <div class="section-title" style="margin-bottom:10px">월별 최대-최소 편차</div>
+      <div class="section-title" style="margin-bottom:10px">월별 편차 비교</div>
       <div style="display:flex;gap:12px;margin-bottom:10px;font-size:11px;color:var(--text2)">
         <span><span style="display:inline-block;width:10px;height:10px;background:#B5D4F4;border-radius:2px;vertical-align:middle;margin-right:4px"></span>기존</span>
         <span><span style="display:inline-block;width:10px;height:10px;background:#5DCAA5;border-radius:2px;vertical-align:middle;margin-right:4px"></span>개선</span>
       </div>
       ${MONTHS.map(([ym,label])=>{
-        const ov=MEMBERS.map(m=>co[ym]?co[ym][m]||0:0).filter(v=>v>0);
-        const nv=MEMBERS.map(m=>cn[ym]?cn[ym][m]||0:0).filter(v=>v>0);
+        const ov=MEMBERS.map(m=>MONTHLY_OLD[ym]?MONTHLY_OLD[ym][m]||0:0).filter(v=>v>0);
+        const nv=MEMBERS.map(m=>MONTHLY_NEW[ym]?MONTHLY_NEW[ym][m]||0:0).filter(v=>v>0);
         const od=ov.length?Math.max(...ov)-Math.min(...ov):0;
         const nd=nv.length?Math.max(...nv)-Math.min(...nv):0;
-        const maxD=5;
-        return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
-          <div style="min-width:30px;font-size:12px;font-weight:600">${label}</div>
+        const maxD=Math.max(od,nd,1);
+        return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <div style="min-width:32px;font-size:12px;font-weight:600">${label}</div>
           <div style="flex:1">
             <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px">
-              <div style="width:${Math.round(od/maxD*140)}px;height:13px;background:#B5D4F4;border-radius:2px"></div>
+              <div style="width:${Math.round(od/5*130)}px;min-width:4px;height:13px;background:#B5D4F4;border-radius:2px"></div>
               <span style="font-size:11px;color:var(--text2)">${od}회</span>
             </div>
             <div style="display:flex;align-items:center;gap:5px">
-              <div style="width:${Math.round(nd/maxD*140)}px;height:13px;background:#5DCAA5;border-radius:2px"></div>
+              <div style="width:${Math.round(nd/5*130)}px;min-width:4px;height:13px;background:#5DCAA5;border-radius:2px"></div>
               <span style="font-size:11px;color:var(--text2)">${nd}회</span>
-              ${nd<od?'<span style="font-size:10px;color:var(--green)">▼'+(od-nd)+'</span>':nd>od?'<span style="font-size:10px;color:var(--red)">▲'+(nd-od)+'</span>':''}
+              ${nd<od?`<span style="font-size:10px;color:var(--green)">▼${od-nd}</span>`:nd>od?`<span style="font-size:10px;color:var(--red)">▲${nd-od}</span>`:''}
             </div>
           </div>
         </div>`;
@@ -970,47 +972,47 @@ function renderCompare(){
     </div>
   </div>
 
-  <!-- 순번 비교 -->
   <div class="section-title" style="margin-bottom:8px">유형별 순번 비교</div>
   <table class="dtable" style="margin-bottom:18px">
     <thead><tr><th>유형</th><th>기존 순번</th><th>개선 순번</th></tr></thead>
     <tbody>
-      ${typeMeta.map(({key,label,cls})=>{
-        const oldO=(ORDERS_CMP_OLD[key]||ORDERS_CMP_OLD['1a']).map(n=>`<span style="font-size:11px;padding:1px 6px;border-radius:3px;background:var(--bg2);display:inline-block;margin:1px">${n}</span>`).join(' ');
-        const newO=(ORDERS_NEW[key]||ORDERS_NEW['1a']).map(n=>`<span style="font-size:11px;padding:1px 6px;border-radius:3px;background:var(--bg2);display:inline-block;margin:1px">${n}</span>`).join(' ');
-        return `<tr><td><span class="badge ${cls}" style="font-size:11px">${label}</span></td><td style="line-height:2">${oldO}</td><td style="line-height:2">${newO}</td></tr>`;
-      }).join('')}
+      ${typeMeta.map(({key,label,cls})=>`
+        <tr>
+          <td><span class="badge ${cls}" style="font-size:11px;white-space:nowrap">${label}</span></td>
+          <td style="line-height:2">${(OLD[key]||OLD['1a']).map(nameSpan).join(' ')}</td>
+          <td style="line-height:2">${(NEW_[key]||NEW_['1a']).map(nameSpan).join(' ')}</td>
+        </tr>`).join('')}
     </tbody>
   </table>
 
-  <!-- 월별 상세 -->
-  <div class="section-title" style="margin-bottom:8px">월별 인당 당직 횟수 상세</div>
+  <div class="section-title" style="margin-bottom:8px">월별 인당 당직 횟수</div>
   <div style="overflow-x:auto">
     <table class="dtable" style="min-width:580px">
       <thead>
         <tr>
-          <th style="text-align:left">월/구분</th>
+          <th style="text-align:left;min-width:80px">월/구분</th>
           ${MEMBERS.map(m=>`<th>${m.slice(0,2)}</th>`).join('')}
           <th>편차</th>
         </tr>
       </thead>
       <tbody>
         ${MONTHS.map(([ym,label])=>{
-          const ov=MEMBERS.map(m=>co[ym]?co[ym][m]||0:0);
-          const nv=MEMBERS.map(m=>cn[ym]?cn[ym][m]||0:0);
+          const ov=MEMBERS.map(m=>MONTHLY_OLD[ym]?MONTHLY_OLD[ym][m]||0:0);
+          const nv=MEMBERS.map(m=>MONTHLY_NEW[ym]?MONTHLY_NEW[ym][m]||0:0);
           const omx=Math.max(...ov),onm=Math.min(...ov.filter(v=>v>0)||[0]);
           const nmx=Math.max(...nv),nnm=Math.min(...nv.filter(v=>v>0)||[0]);
-          const oldRow=`<tr>
-            <td style="font-size:11px;color:var(--text2)">${label} 기존</td>
-            ${ov.map(v=>`<td style="background:#EFF6FF;${v===omx?'color:var(--red);font-weight:700':''}">${v}</td>`).join('')}
-            <td style="background:#EFF6FF;font-size:11px">${omx-onm}</td>
-          </tr>`;
-          const newRow=`<tr>
-            <td style="font-size:11px;color:var(--text2)">${label} 개선</td>
-            ${nv.map(v=>`<td style="background:#F0FAF4;${v===nmx?'color:var(--red);font-weight:700':''}">${v}</td>`).join('')}
-            <td style="background:#F0FAF4;font-size:11px">${nmx-nnm}</td>
-          </tr>`;
-          return oldRow+newRow+`<tr><td colspan="${MEMBERS.length+2}" style="height:3px;background:var(--bg2)"></td></tr>`;
+          return `
+            <tr>
+              <td style="font-size:11px;color:var(--text2)">${label} 기존</td>
+              ${ov.map(v=>`<td style="background:#EFF6FF;${v===omx?'color:var(--red);font-weight:700':''}">${v}</td>`).join('')}
+              <td style="background:#EFF6FF;font-size:11px;font-weight:600">${omx-onm}</td>
+            </tr>
+            <tr>
+              <td style="font-size:11px;color:var(--text2)">${label} 개선</td>
+              ${nv.map(v=>`<td style="background:#F0FAF4;${v===nmx?'color:var(--red);font-weight:700':''}">${v}</td>`).join('')}
+              <td style="background:#F0FAF4;font-size:11px;font-weight:600">${nmx-nnm}</td>
+            </tr>
+            <tr><td colspan="${MEMBERS.length+2}" style="height:3px;background:var(--bg2);padding:0"></td></tr>`;
         }).join('')}
         <tr style="font-weight:700;border-top:1px solid var(--border)">
           <td>합계 기존</td>
@@ -1024,8 +1026,7 @@ function renderCompare(){
         </tr>
       </tbody>
     </table>
-  </div>
-  `;
+  </div>`;
 }
 
 function renderOrders(){
