@@ -342,27 +342,30 @@ function getLunarHolidays(){
   return result;
 }
 
+// 대체공휴일 적용 대상
 const SUB_SINGLE=new Set(['삼일절','광복절','개천절','한글날','어린이날','부처님오신날','신정','제헌절','노동절']);
-// 설날/추석 당일: 토/일 겹치면 대체공휴일
-const SUB_HOLIDAY=new Set(['설날','추석']);
+const SUB_HOLIDAY=new Set(['설날','추석']); // 당일만
 
 let _subHolCache=null;
+
 function getSubHolidays(){
   if(_subHolCache) return _subHolCache;
-  // [date, name] 배열로 변환 (같은 날 여러 공휴일 허용)
-  // DB + 코드 내장 음력 데이터 병합
+
+  // DB 법정공휴일 + 코드 내장 음력 데이터 병합
   const dbList=ST.holidays.filter(h=>h.type==='regular').map(h=>[h.date,h.name]);
   const lunarList=getLunarHolidays();
-  // DB에 없는 날만 코드 데이터로 보완
   const dbDates=new Set(dbList.map(([ds])=>ds));
   const extraLunar=lunarList.filter(([ds])=>!dbDates.has(ds));
   const baseList=[...dbList,...extraLunar];
+
+  // 모든 법정공휴일 날짜 집합 (대체공휴일 계산용)
   const allDates=new Set(baseList.map(([ds])=>ds));
   const result={};
 
   function isTaken(ds){
     const d=new Date(ds+'T00:00:00');
-    return allDates.has(ds)||result[ds]||d.getDay()===0||d.getDay()===6;
+    // 주말이거나 이미 공휴일이거나 이미 대체공휴일로 지정된 날
+    return d.getDay()===0||d.getDay()===6||allDates.has(ds)||!!result[ds];
   }
 
   [...baseList].sort((a,b)=>a[0].localeCompare(b[0])).forEach(([ds,name])=>{
@@ -370,61 +373,88 @@ function getSubHolidays(){
     let sub=null;
 
     if(SUB_SINGLE.has(name)){
-      if(dow===6){sub=new Date(d);sub.setDate(sub.getDate()+2);}       // 토→+2
-      else if(dow===0){sub=new Date(d);sub.setDate(sub.getDate()+1);}   // 일→+1
-      // 평일이지만 같은 날에 다른 공휴일(연휴)과 겹치는 경우
-      else if(baseList.filter(([d2,n2])=>d2===ds&&n2!==name).length>0){
+      // 토요일→월요일(+2), 일요일→월요일(+1)
+      if(dow===6){sub=new Date(d);sub.setDate(sub.getDate()+2);}
+      else if(dow===0){sub=new Date(d);sub.setDate(sub.getDate()+1);}
+      // 평일이지만 같은 날 다른 공휴일과 겹치면(예: 개천절+추석다음날)
+      else if(baseList.some(([d2,n2])=>d2===ds&&n2!==name)){
         sub=new Date(d);sub.setDate(sub.getDate()+1);
       }
     } else if(SUB_HOLIDAY.has(name)){
-      if(dow===6){sub=new Date(d);sub.setDate(sub.getDate()+2);}       // 토→+2
-      else if(dow===0){sub=new Date(d);sub.setDate(sub.getDate()+1);}   // 일→+1
+      // 설날/추석 당일이 토→+2, 일→+1
+      if(dow===6){sub=new Date(d);sub.setDate(sub.getDate()+2);}
+      else if(dow===0){sub=new Date(d);sub.setDate(sub.getDate()+1);}
     }
 
     if(!sub) return;
-    // 겹치면 하루씩 밀기
-    while(isTaken(fmt(sub))) sub.setDate(sub.getDate()+1);
-    result[fmt(sub)]=name+' 대체공휴일';
-    allDates.add(fmt(sub));
+
+    // 이미 사용된 날이면 하루씩 밀기 (단, 무한루프 방지)
+    let cnt=0;
+    while(isTaken(fmt(sub))&&cnt<10){sub.setDate(sub.getDate()+1);cnt++;}
+    if(cnt<10){
+      result[fmt(sub)]=name+' 대체공휴일';
+      allDates.add(fmt(sub));
+    }
   });
 
   _subHolCache=result;
   return result;
 }
+
 function clearHolCache(){_subHolCache=null;}
 
-// 창립기념일: 매년 9월 23일 고정
+// 창립기념일: 매년 9월 23일
 function isAnniversary(ds){return ds.slice(5)==='09-23';}
 
 function getHol(ds){return ST.holidays.find(h=>h.date===ds)||null;}
+
 function isHoliday(ds){
+  // DB 법정공휴일
   const h=getHol(ds);
   if(h&&h.type==='regular') return true;
-  if(getSubHolidays()[ds]) return true;
-  // 코드 내장 음력 데이터로도 확인
+  // 코드 내장 음력 데이터
   const lunarDates=new Set(getLunarHolidays().map(([d])=>d));
   if(lunarDates.has(ds)) return true;
+  // 대체공휴일 (자동 계산)
+  if(getSubHolidays()[ds]) return true;
   return false;
 }
+
 function isTempHol(ds){
   const h=getHol(ds);
+  // type='temp' or 'company'인 경우만 임시공휴일
   return !!(h&&(h.type==='temp'||h.type==='company'));
 }
+
 function isOff(ds){
   const d=new Date(ds+'T00:00:00'),dow=d.getDay();
   return dow===0||dow===6||isHoliday(ds)||isTempHol(ds)||isAnniversary(ds);
 }
+
 function getHolName(ds){
+  // 1순위: DB에 있는 이름
   const h=getHol(ds);
   if(h) return h.name;
+  // 2순위: 대체공휴일 자동 계산
   const sub=getSubHolidays()[ds];
   if(sub) return sub;
+  // 3순위: 창립기념일
   if(isAnniversary(ds)) return '창립기념일';
-  // 코드 내장 음력
+  // 4순위: 코드 내장 음력
   const lunarEntry=getLunarHolidays().find(([d])=>d===ds);
   if(lunarEntry) return lunarEntry[1];
   return null;
 }
+
+
+// 창립기념일: 매년 9월 23일 고정
+
+
+
+
+
+
+
 function fmt(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function fmtYM(y,m){return y+'-'+String(m).padStart(2,'0');}
 function nextDs(ds){const d=new Date(ds+'T00:00:00');d.setDate(d.getDate()+1);return fmt(d);}
@@ -474,8 +504,8 @@ function getDtype(ds){
   const wfs=getWFDays(d.getFullYear(),d.getMonth()+1);
   if(wfs.includes(ds)&&!isOff(ds)) return 3;
 
-  // 금요일 → 6번
-  if(dow===5) return 6;
+  // 금요일 → 4번 (별도 순번)
+  if(dow===5) return 4;
 
   // 평일인데 다음날 쉬는날 → 6번
   if(isOff(nd)) return 6;
