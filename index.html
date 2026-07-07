@@ -656,7 +656,7 @@ function buildSchedule(y,m){
 }
 
 function autoSwap(result){
-  const NO_SWAP=new Set(['1a','1b',6]);
+  const NO_SWAP=new Set([6]); // 휴일 저녁 가판만 교체 안 함
   function ik(dt){return typeof dt==='string'?1:dt;}
   function canSwap(dtype){return!NO_SWAP.has(dtype);}
   function dateDiff(a,b){return Math.abs((new Date(a+'T00:00:00')-new Date(b+'T00:00:00'))/86400000);}
