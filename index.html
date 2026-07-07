@@ -51,12 +51,12 @@ body{font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;ba
 .cal-dc.modified{border:2px solid #6ee7b7!important;}
 .cal-dc.swapped{border:2px solid #fbbf24!important;background:#fffbeb!important;}
 .cal-dc.today{outline:2px solid var(--blue);outline-offset:-1px;}
-.cal-dn{font-size:12px;font-weight:600;color:var(--text3);margin-bottom:2px;}
+.cal-dn{font-size:13px;font-weight:600;color:var(--text3);margin-bottom:2px;}
 .cal-dc.sun-c .cal-dn{color:#dc2626;}.cal-dc.sat-c .cal-dn{color:#2563eb;}
-.cal-hol{font-size:11px;color:#dc2626;font-weight:600;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.cal-mb{font-size:13px;padding:3px 6px;border-radius:3px;display:inline-block;font-weight:700;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px;}
-.cal-dtype{font-size:11px;font-weight:600;color:var(--text3);margin-top:1px;}
-.cal-tag{font-size:10px;padding:1px 4px;border-radius:2px;margin-top:2px;font-weight:600;display:inline-block;}
+.cal-hol{font-size:12px;color:#dc2626;font-weight:600;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.cal-mb{font-size:14px;padding:3px 6px;border-radius:3px;display:inline-block;font-weight:700;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px;}
+.cal-dtype{font-size:12px;font-weight:600;color:var(--text3);margin-top:1px;}
+.cal-tag{font-size:11px;padding:1px 4px;border-radius:2px;margin-top:2px;font-weight:600;display:inline-block;}
 .cal-warn{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;}
 .cal-swap-tag{background:#fef3c7;color:#92400e;border:1px solid #fde68a;}
 .cal-auto-tag{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;}
@@ -339,7 +339,7 @@ const SEP_IDX_OLD={1:0,2:0,3:0,4:0,5:0,6:0};
 let USE_NEW=true;
 let ORDERS=ORDERS_NEW;
 let SEP_IDX=SEP_IDX_NEW;
-const DI={'1a':{label:'일반 공휴일',cls:'dt1a'},'1b':{label:'일반 공휴일',cls:'dt1b'},2:{label:'WF 전날 가판',cls:'dt2'},3:{label:'WF 당일 가판',cls:'dt3'},4:{label:'금요일',cls:'dt4'},5:{label:'평일',cls:'dt5'},6:{label:'대체/금 공휴',cls:'dt6'}};
+const DI={'1a':{label:'일요일/휴일',cls:'dt1a'},'1b':{label:'일요일/휴일',cls:'dt1b'},2:{label:'WF 조간',cls:'dt2'},3:{label:'WF 당직',cls:'dt3'},4:{label:'금요일',cls:'dt4'},5:{label:'평일',cls:'dt5'},6:{label:'휴일 저녁 가판',cls:'dt6'}};
 const CLS_BG={dt1a:'#dbeafe',dt1b:'#e0e7ff',dt2:'#d1fae5',dt3:'#d9f99d',dt4:'#fce7f3',dt5:'#ede9fe',dt6:'#fef3c7'};
 const CLS_FG={dt1a:'#1e3a8a',dt1b:'#3730a3',dt2:'#064e3b',dt3:'#365314',dt4:'#831843',dt5:'#4c1d95',dt6:'#78350f'};
 const CLS_BD={dt1a:'#bfdbfe',dt1b:'#c7d2fe',dt2:'#a7f3d0',dt3:'#bef264',dt4:'#fbcfe8',dt5:'#ddd6fe',dt6:'#fde68a'};
@@ -663,15 +663,23 @@ function autoSwap(result){
   }
 
   // ── 1단계: 신민경 화요일 교체 ──
+  // 우선순위: 바로 앞날(i-1) → 바로 뒷날(i+1) → 앞쪽 확장 → 뒤쪽 확장
   for(let i=0;i<result.length;i++){
     const s=result[i];
     if(s.member!=='신민경'||!isTue(s.date)||!canSwap(s.dtype)) continue;
     const k=ik(s.dtype);
     let done=false;
-    for(let j=i-1;j>=Math.max(0,i-14)&&!done;j--)
-      if(ik(result[j].dtype)===k) done=safeSwap(result,i,j);
+    // 바로 앞날 먼저
+    if(i>0&&ik(result[i-1].dtype)===k) done=safeSwap(result,i,i-1);
+    // 바로 뒷날
+    if(!done&&i+1<result.length&&ik(result[i+1].dtype)===k) done=safeSwap(result,i,i+1);
+    // 앞쪽 확장 (바로 앞은 이미 시도했으니 i-2부터)
     if(!done)
-      for(let j=i+1;j<Math.min(result.length,i+14)&&!done;j++)
+      for(let j=i+2;j<Math.min(result.length,i+7)&&!done;j++)
+        if(ik(result[j].dtype)===k) done=safeSwap(result,i,j);
+    // 뒤쪽 확장
+    if(!done)
+      for(let j=i-2;j>=Math.max(0,i-7)&&!done;j--)
         if(ik(result[j].dtype)===k) done=safeSwap(result,i,j);
   }
 
@@ -721,7 +729,7 @@ function autoSwap(result){
   }
 }
 function renderLegend(){
-  const items=[{cls:'dt5',label:'평일'},{cls:'dt1a',label:'일반 공휴일'},{cls:'dt2',label:'WF 전날 가판'},{cls:'dt3',label:'WF 당일 가판'},{cls:'dt4',label:'금요일'},{cls:'dt6',label:'대체/금 공휴'}];
+  const items=[{cls:'dt5',label:'평일'},{cls:'dt1a',label:'일요일/휴일'},{cls:'dt2',label:'WF 조간'},{cls:'dt3',label:'WF 당직'},{cls:'dt4',label:'금요일'},{cls:'dt6',label:'휴일 저녁 가판'}];
   document.getElementById('legend').innerHTML=items.map(i=>`<div class="leg"><div class="leg-dot ${i.cls}"></div><span>${i.label}</span></div>`).join('');
 }
 function renderCal(){
@@ -914,12 +922,12 @@ function renderCompare(){
   const maxT=Math.max(...otArr,...ntArr)||1;
 
   const typeMeta=[
-    {key:'1a',label:'일반 공휴일',cls:'dt1a'},
-    {key:2,   label:'WF 전날 가판',cls:'dt2'},
+    {key:'1a',label:'일요일/휴일',cls:'dt1a'},
+    {key:2,   label:'WF 조간',cls:'dt2'},
     {key:5,   label:'평일',cls:'dt5'},
-    {key:3,   label:'WF 당일 가판',cls:'dt3'},
+    {key:3,   label:'WF 당직',cls:'dt3'},
     {key:4,   label:'금요일',cls:'dt4'},
-    {key:6,   label:'대체/금 공휴',cls:'dt6'},
+    {key:6,   label:'휴일 저녁 가판',cls:'dt6'},
   ];
 
   function nameSpan(n){return `<span style="font-size:11px;padding:2px 6px;border-radius:3px;background:var(--bg2);display:inline-block;margin:1px">${n}</span>`;}
@@ -1044,7 +1052,7 @@ function renderCompare(){
 }
 
 function renderOrders(){
-  const info=[{key:'1a',disp:'일반 공휴일',group:'Heavy'},{key:2,disp:'WF 전날 가판',group:'Heavy'},{key:5,disp:'평일',group:'Heavy'},{key:3,disp:'WF 당일 가판',group:'Light'},{key:4,disp:'금요일',group:'Light'},{key:6,disp:'대체/금 공휴',group:'Light'}];
+  const info=[{key:'1a',disp:'일요일/휴일',group:'Heavy'},{key:2,disp:'WF 조간',group:'Heavy'},{key:5,disp:'평일',group:'Heavy'},{key:3,disp:'WF 당직',group:'Light'},{key:4,disp:'금요일',group:'Light'},{key:6,disp:'휴일 저녁 가판',group:'Light'}];
   let rows='';
   info.forEach(({key,disp,group})=>{
     const di=DI[key],order=ORDERS[key],idx=typeof key==='string'?SEP_IDX[1]:SEP_IDX[key],sp=order[idx%order.length];
