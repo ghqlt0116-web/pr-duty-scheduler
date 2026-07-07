@@ -61,10 +61,13 @@ body{font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;ba
 .cal-swap-tag{background:#fef3c7;color:#92400e;border:1px solid #fde68a;}
 .cal-auto-tag{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;}
 .cal-mod-tag{background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;}
-.dt1a{background:#dbeafe;color:#1e3a8a;}.dt1b{background:#e0e7ff;color:#3730a3;}
-.dt2{background:#d1fae5;color:#064e3b;}.dt3{background:#d9f99d;color:#365314;}
-.dt4{background:#fce7f3;color:#831843;}.dt5{background:#ede9fe;color:#4c1d95;}
-.dt6{background:#fef3c7;color:#78350f;}
+.dt1a{background:#93c5fd;color:#1e3a8a;font-weight:700;}  /* 일요일/휴일 - 파랑 */
+.dt1b{background:#93c5fd;color:#1e3a8a;font-weight:700;}
+.dt2{background:#6ee7b7;color:#064e3b;font-weight:700;}   /* WF조간 - 초록 */
+.dt3{background:#bef264;color:#365314;font-weight:700;}   /* WF당직 - 연두 */
+.dt4{background:#f9a8d4;color:#831843;font-weight:700;}   /* 금요일 - 핑크 */
+.dt5{background:#c4b5fd;color:#4c1d95;font-weight:700;}   /* 평일 - 보라 */
+.dt6{background:#fcd34d;color:#78350f;font-weight:700;}   /* 휴일저녁가판 - 노랑 */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;}
 .modal{background:var(--bg3);border-radius:12px;padding:22px;width:100%;max-width:500px;box-shadow:var(--sh-md);}
 .modal-title{font-size:17px;font-weight:700;margin-bottom:2px;}
@@ -360,7 +363,7 @@ let USE_NEW=false;
 let ORDERS=ORDERS_OLD;
 let SEP_IDX=SEP_IDX_OLD;
 const DI={'1a':{label:'일요일/휴일',cls:'dt1a'},'1b':{label:'일요일/휴일',cls:'dt1b'},2:{label:'WF 조간',cls:'dt2'},3:{label:'WF 당직',cls:'dt3'},4:{label:'금요일',cls:'dt4'},5:{label:'평일',cls:'dt5'},6:{label:'휴일 저녁 가판',cls:'dt6'}};
-const CLS_BG={dt1a:'#dbeafe',dt1b:'#e0e7ff',dt2:'#d1fae5',dt3:'#d9f99d',dt4:'#fce7f3',dt5:'#ede9fe',dt6:'#fef3c7'};
+const CLS_BG={dt1a:'#93c5fd',dt1b:'#93c5fd',dt2:'#6ee7b7',dt3:'#bef264',dt4:'#f9a8d4',dt5:'#c4b5fd',dt6:'#fcd34d'};
 const CLS_FG={dt1a:'#1e3a8a',dt1b:'#3730a3',dt2:'#064e3b',dt3:'#365314',dt4:'#831843',dt5:'#4c1d95',dt6:'#78350f'};
 const CLS_BD={dt1a:'#bfdbfe',dt1b:'#c7d2fe',dt2:'#a7f3d0',dt3:'#bef264',dt4:'#fbcfe8',dt5:'#ddd6fe',dt6:'#fde68a'};
 function getClsBg(cls){return CLS_BG[cls]||'#f3f4f6';}
@@ -537,6 +540,7 @@ function getWFDays(y,m){const fris=[],d=new Date(y,m-1,1);while(d.getMonth()===m
 function getDtype(ds){
   const d=new Date(ds+'T00:00:00'),dow=d.getDay();
   const nd=nextDs(ds);
+  const ndDow=new Date(nd+'T00:00:00').getDay();
 
   // 토요일: 당직 없음
   if(dow===6) return null;
@@ -551,22 +555,31 @@ function getDtype(ds){
   // 설날 전날·당일, 추석 전날·당일 → 당직 없음
   if(name==='설날 전날'||name==='추석 전날'||name==='설날'||name==='추석') return null;
 
-  // 설날 다음날·추석 다음날 → 일요일/휴일처럼
-  if(name==='설날 다음날'||name==='추석 다음날'){
-    return isOff(nd)?'1b':'1a';
+  // 다음날이 공휴일/임시공휴일인지 (토요일 제외)
+  // 토요일은 신문 없으므로 6번 대상 아님
+  function nextIsHoliday(){
+    if(ndDow===6) return false; // 토요일이면 6번 아님
+    return isHoliday(nd)||isTempHol(nd)||isAnniversary(nd);
   }
 
-  // 9/22: 다음날 창립기념일이면 → 금요일(4번)
+  // 설날 다음날·추석 다음날
+  if(name==='설날 다음날'||name==='추석 다음날'){
+    return nextIsHoliday()?6:'1a';
+  }
+
+  // 9/22: 다음날이 창립기념일이면 → 금요일(4번)
   if(ds.slice(5)==='09-22'&&isAnniversary(nd)) return 4;
 
   // 임시공휴일/창립기념일
   if(isTempHol(ds)||isAnniversary(ds)){
-    return isOff(nd)?'1b':'1a';
+    return nextIsHoliday()?6:'1a';
   }
 
   // 일요일 or 법정공휴일
+  // 다음날이 공휴일/임시공휴일 → 6번(휴일 저녁 가판)
+  // 다음날이 토요일 또는 평일 → 1a(일요일/휴일)
   if(dow===0||isHoliday(ds)){
-    return isOff(nd)?'1b':'1a';
+    return nextIsHoliday()?6:'1a';
   }
 
   // WF 전날 목요일
@@ -584,7 +597,6 @@ function getDtype(ds){
   if(dow===5) return 4;
 
   // 평일인데 다음날 쉬는날 → 4번(금요일 순번)
-  // (일반 근무일이므로 금요일과 동일하게 처리)
   if(isOff(nd)) return 4;
 
   return 5;
