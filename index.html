@@ -686,15 +686,19 @@ function autoSwap(result){
     for(let i=1;i<result.length;i++){
       const p=result[i-1],c=result[i];
       if(!(p.consec&&c.consec)) continue;
+
+      // 연속된 두 날 중 어느 하나라도 6번(대체/금공휴)이면 교체 안 함
+      if(p.dtype===6||c.dtype===6) continue;
+
       let done=false;
 
-      // 우선순위1: 앞날짜(p) 교체 가능하면 앞쪽 탐색
+      // 우선순위1: 앞날짜(p) 앞쪽 탐색
       if(canSwap(p.dtype)){
         for(let j=i-2;j>=Math.max(0,i-14)&&!done;j--)
           if(ik(result[j].dtype)===ik(p.dtype)){done=safeSwap(result,i-1,j);if(done)changed=true;}
       }
 
-      // 우선순위2: 뒤날짜(c) 앞쪽 탐색 (p가 NO_SWAP인 경우 커버)
+      // 우선순위2: 뒤날짜(c) 앞쪽 탐색 (p가 NO_SWAP인 경우)
       if(!done&&canSwap(c.dtype)){
         for(let j=i-2;j>=Math.max(0,i-14)&&!done;j--)
           if(ik(result[j].dtype)===ik(c.dtype)){done=safeSwap(result,i,j);if(done)changed=true;}
