@@ -529,13 +529,16 @@ function getDtype(ds){
   const name=holName||lunarName||null;
 
   // 설날 전날·당일, 추석 전날·당일 → 당직 없음
-  if(name==='설날 전날'||name==='추석 전날'||name==='설날'||name==='추석'){
-    return null;
-  }
+  if(name==='설날 전날'||name==='추석 전날'||name==='설날'||name==='추석') return null;
 
-  // 설날 다음날·추석 다음날 → 일반공휴일처럼 처리 (다음날 기준)
+  // 설날 다음날·추석 다음날 → 일반공휴일처럼
   if(name==='설날 다음날'||name==='추석 다음날'){
     return isOff(nd)?6:'1a';
+  }
+
+  // 9월 22일: 다음날이 창립기념일이면 → 금요일(4번) 순번
+  if(ds.slice(5)==='09-22'&&isAnniversary(nd)){
+    return 4;
   }
 
   // 임시공휴일/창립기념일
@@ -555,11 +558,11 @@ function getDtype(ds){
     if(wfs.includes(nd)&&!isOff(nd)) return 2;
   }
 
-  // WF 당일 (공휴일이면 WF 아님)
+  // WF 당일
   const wfs=getWFDays(d.getFullYear(),d.getMonth()+1);
   if(wfs.includes(ds)&&!isOff(ds)) return 3;
 
-  // 금요일 → 4번 (별도 순번)
+  // 금요일 → 4번
   if(dow===5) return 4;
 
   // 평일인데 다음날 쉬는날 → 6번
