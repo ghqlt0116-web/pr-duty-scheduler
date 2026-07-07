@@ -536,8 +536,16 @@ function getDtype(ds){
     return isOff(nd)?6:'1a';
   }
 
+  // 12/24, 12/31: 스크랩 없는 특수일
+  // 평일(월~금) → 4번(금요일 순번), 일요일 → 1a(일반공휴일), 토 → 위에서 null
+  const mmdd=ds.slice(5);
+  if(mmdd==='12-24'||mmdd==='12-31'){
+    if(dow===0) return '1a'; // 일요일 → 일반공휴일
+    return 4; // 평일 → 금요일 순번
+  }
+
   // 9월 22일: 다음날이 창립기념일이면 → 금요일(4번) 순번
-  if(ds.slice(5)==='09-22'&&isAnniversary(nd)){
+  if(mmdd==='09-22'&&isAnniversary(nd)){
     return 4;
   }
 
@@ -628,13 +636,10 @@ function autoSwap(result){
   const NO_SWAP=new Set(['1a','1b',6]);
   function ik(dt){return typeof dt==='string'?1:dt;}
   function canSwap(dtype){return!NO_SWAP.has(dtype);}
-  function dateDiff(a,b){
-    return Math.abs((new Date(a+'T00:00:00')-new Date(b+'T00:00:00'))/86400000);
-  }
+  function dateDiff(a,b){return Math.abs((new Date(a+'T00:00:00')-new Date(b+'T00:00:00'))/86400000);}
   function isTue(ds){return new Date(ds+'T00:00:00').getDay()===2;}
 
-  // 교체 가능 여부 + 교체 후 연속 발생 여부 체크
-  function safeSwap(i,j){
+  function safeSwap(result,i,j){
     const a=result[i],b=result[j];
     if(!a||!b) return false;
     if(a.autoSwapped||b.autoSwapped) return false;
@@ -643,14 +648,12 @@ function autoSwap(result){
     if(b.member==='신민경'&&isTue(a.date)) return false;
     if(a.member==='신민경'&&isTue(b.date)) return false;
     const n=result.length;
-    // i 자리에 b.member: 앞(i-1, j가 아닌 것만), 뒤(i+1, j가 아닌 것만)
     const ip=i>0&&i-1!==j?result[i-1]:null;
     const in_=i+1<n&&i+1!==j?result[i+1]:null;
-    if(ip&&dateDiff(a.date,ip.date)<=1&&ip.member===b.member) return false;
-    if(in_&&dateDiff(in_.date,a.date)<=1&&in_.member===b.member) return false;
-    // j 자리에 a.member: 앞(j-1, i가 아닌 것만), 뒤(j+1, i가 아닌 것만)
     const jp=j>0&&j-1!==i?result[j-1]:null;
     const jn=j+1<n&&j+1!==i?result[j+1]:null;
+    if(ip&&dateDiff(a.date,ip.date)<=1&&ip.member===b.member) return false;
+    if(in_&&dateDiff(in_.date,a.date)<=1&&in_.member===b.member) return false;
     if(jp&&dateDiff(b.date,jp.date)<=1&&jp.member===a.member) return false;
     if(jn&&dateDiff(jn.date,b.date)<=1&&jn.member===a.member) return false;
     const t=a.member;a.member=b.member;b.member=t;
@@ -664,39 +667,43 @@ function autoSwap(result){
     const s=result[i];
     if(s.member!=='신민경'||!isTue(s.date)||!canSwap(s.dtype)) continue;
     const k=ik(s.dtype);
-    // 바로 앞날(i-1)부터 탐색
     let done=false;
     for(let j=i-1;j>=Math.max(0,i-14)&&!done;j--)
-      if(ik(result[j].dtype)===k) done=safeSwap(i,j);
+      if(ik(result[j].dtype)===k) done=safeSwap(result,i,j);
     if(!done)
       for(let j=i+1;j<Math.min(result.length,i+14)&&!done;j++)
-        if(ik(result[j].dtype)===k) done=safeSwap(i,j);
+        if(ik(result[j].dtype)===k) done=safeSwap(result,i,j);
   }
 
   // ── 2단계: 연속당직 교체 ──
   for(let pass=0;pass<3;pass++){
-    // 연속 감지
     result.forEach(s=>{s.consec=false;});
     for(let i=1;i<result.length;i++){
       const p=result[i-1],c=result[i];
-      if(dateDiff(p.date,c.date)===1&&p.member===c.member){
-        p.consec=true;c.consec=true;
-      }
+      if(dateDiff(p.date,c.date)===1&&p.member===c.member){p.consec=true;c.consec=true;}
     }
     let changed=false;
     for(let i=1;i<result.length;i++){
       const p=result[i-1],c=result[i];
       if(!(p.consec&&c.consec)) continue;
-      // 앞날짜(p) 교체 우선
       let done=false;
+
+      // 우선순위1: 앞날짜(p) 교체 가능하면 앞쪽 탐색
       if(canSwap(p.dtype)){
         for(let j=i-2;j>=Math.max(0,i-14)&&!done;j--)
-          if(ik(result[j].dtype)===ik(p.dtype)){done=safeSwap(i-1,j);if(done)changed=true;}
+          if(ik(result[j].dtype)===ik(p.dtype)){done=safeSwap(result,i-1,j);if(done)changed=true;}
       }
-      // 뒤날짜(c) 교체
+
+      // 우선순위2: 뒤날짜(c) 앞쪽 탐색 (p가 NO_SWAP인 경우 커버)
+      if(!done&&canSwap(c.dtype)){
+        for(let j=i-2;j>=Math.max(0,i-14)&&!done;j--)
+          if(ik(result[j].dtype)===ik(c.dtype)){done=safeSwap(result,i,j);if(done)changed=true;}
+      }
+
+      // 우선순위3: 뒤날짜(c) 뒤쪽 탐색
       if(!done&&canSwap(c.dtype)){
         for(let j=i+1;j<Math.min(result.length,i+14)&&!done;j++)
-          if(ik(result[j].dtype)===ik(c.dtype)){done=safeSwap(i,j);if(done)changed=true;}
+          if(ik(result[j].dtype)===ik(c.dtype)){done=safeSwap(result,i,j);if(done)changed=true;}
       }
     }
     if(!changed) break;
