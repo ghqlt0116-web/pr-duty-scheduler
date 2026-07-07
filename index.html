@@ -139,7 +139,27 @@ body{font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;ba
 .dtable th{padding:6px 8px;text-align:left;font-size:12px;font-weight:700;color:var(--text3);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.5px;}
 .dtable td{padding:7px 8px;border-bottom:1px solid var(--bg2);}
 .dtable tr:last-child td{border-bottom:none;}
-@media(max-width:600px){.cal-dtype{display:none;}.cal-dc{min-height:68px;}.month-label{font-size:17px;}}
+@media(max-width:640px){
+  .app{padding:0 8px 60px;}
+  .header h1{font-size:14px;}
+  .header p{display:none;}
+  .nav{gap:1px;}
+  .nav-tab{font-size:10px;padding:6px 3px;}
+  .month-label{font-size:15px;}
+  .cal{gap:2px;}
+  .cal-dh{font-size:9px;padding:2px 0;}
+  .cal-dc{min-height:60px;padding:3px;}
+  .cal-mb{font-size:11px;padding:2px 3px;}
+  .cal-dtype{font-size:9px;}
+  .cal-dn{font-size:10px;}
+  .cal-tag{font-size:8px;padding:1px 3px;}
+  .cal-hol{font-size:9px;margin-bottom:1px;}
+  .legend{gap:4px;}
+  .leg{font-size:10px;}
+  #memberCount>div{font-size:11px;padding:3px 7px;}
+  .hol-grid{grid-template-columns:1fr;}
+  .form-row{flex-wrap:wrap;}
+}.cal-dc{min-height:68px;}.month-label{font-size:17px;}}
 </style>
 </head>
 <body>
@@ -149,8 +169,8 @@ body{font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;ba
     <div class="header-right">
       <div class="sync"><div class="sync-dot" id="syncDot"></div><span id="syncText">연결 중...</span></div>
       <div style="display:flex;gap:2px;background:var(--bg2);border-radius:var(--rs);padding:3px;">
-        <button id="btnOld" onclick="setOrderVer(false)" style="padding:4px 10px;border-radius:4px;border:none;font-size:11px;font-weight:600;cursor:pointer;background:none;color:var(--text2);">기존 순번</button>
-        <button id="btnNew" onclick="setOrderVer(true)" style="padding:4px 10px;border-radius:4px;border:none;font-size:11px;font-weight:600;cursor:pointer;background:var(--bg3);box-shadow:var(--sh);color:var(--text);">개선 순번</button>
+        <button id="btnOld" onclick="setOrderVer(false)" style="padding:4px 10px;border-radius:4px;border:none;font-size:11px;font-weight:600;cursor:pointer;background:var(--bg3);box-shadow:var(--sh);color:var(--text);">기존 순번</button>
+        <button id="btnNew" onclick="setOrderVer(true)" style="padding:4px 10px;border-radius:4px;border:none;font-size:11px;font-weight:600;cursor:pointer;background:none;color:var(--text2);">개선 순번</button>
       </div>
       <select class="fi" id="yearSel" onchange="onDateChange()"></select>
       <select class="fi" id="monthSel" onchange="onDateChange()"></select>
@@ -336,9 +356,9 @@ const ORDERS_OLD={
   6:   ['신동석','이홍연','신민경','한수연','최승훈','유시화','손정모','조현우'],
 };
 const SEP_IDX_OLD={1:0,2:0,3:0,4:0,5:0,6:0};
-let USE_NEW=true;
-let ORDERS=ORDERS_NEW;
-let SEP_IDX=SEP_IDX_NEW;
+let USE_NEW=false;
+let ORDERS=ORDERS_OLD;
+let SEP_IDX=SEP_IDX_OLD;
 const DI={'1a':{label:'일요일/휴일',cls:'dt1a'},'1b':{label:'일요일/휴일',cls:'dt1b'},2:{label:'WF 조간',cls:'dt2'},3:{label:'WF 당직',cls:'dt3'},4:{label:'금요일',cls:'dt4'},5:{label:'평일',cls:'dt5'},6:{label:'휴일 저녁 가판',cls:'dt6'}};
 const CLS_BG={dt1a:'#dbeafe',dt1b:'#e0e7ff',dt2:'#d1fae5',dt3:'#d9f99d',dt4:'#fce7f3',dt5:'#ede9fe',dt6:'#fef3c7'};
 const CLS_FG={dt1a:'#1e3a8a',dt1b:'#3730a3',dt2:'#064e3b',dt3:'#365314',dt4:'#831843',dt5:'#4c1d95',dt6:'#78350f'};
@@ -531,32 +551,22 @@ function getDtype(ds){
   // 설날 전날·당일, 추석 전날·당일 → 당직 없음
   if(name==='설날 전날'||name==='추석 전날'||name==='설날'||name==='추석') return null;
 
-  // 설날 다음날·추석 다음날 → 일반공휴일처럼
+  // 설날 다음날·추석 다음날 → 일요일/휴일처럼
   if(name==='설날 다음날'||name==='추석 다음날'){
-    return isOff(nd)?6:'1a';
+    return isOff(nd)?'1b':'1a';
   }
 
-  // 12/24, 12/31: 스크랩 없는 특수일
-  // 평일(월~금) → 4번(금요일 순번), 일요일 → 1a(일반공휴일), 토 → 위에서 null
-  const mmdd=ds.slice(5);
-  if(mmdd==='12-24'||mmdd==='12-31'){
-    if(dow===0) return '1a'; // 일요일 → 일반공휴일
-    return 4; // 평일 → 금요일 순번
-  }
-
-  // 9월 22일: 다음날이 창립기념일이면 → 금요일(4번) 순번
-  if(mmdd==='09-22'&&isAnniversary(nd)){
-    return 4;
-  }
+  // 9/22: 다음날 창립기념일이면 → 금요일(4번)
+  if(ds.slice(5)==='09-22'&&isAnniversary(nd)) return 4;
 
   // 임시공휴일/창립기념일
   if(isTempHol(ds)||isAnniversary(ds)){
-    return isOff(nd)?6:'1a';
+    return isOff(nd)?'1b':'1a';
   }
 
   // 일요일 or 법정공휴일
   if(dow===0||isHoliday(ds)){
-    return isOff(nd)?6:'1a';
+    return isOff(nd)?'1b':'1a';
   }
 
   // WF 전날 목요일
@@ -573,8 +583,9 @@ function getDtype(ds){
   // 금요일 → 4번
   if(dow===5) return 4;
 
-  // 평일인데 다음날 쉬는날 → 6번
-  if(isOff(nd)) return 6;
+  // 평일인데 다음날 쉬는날 → 4번(금요일 순번)
+  // (일반 근무일이므로 금요일과 동일하게 처리)
+  if(isOff(nd)) return 4;
 
   return 5;
 }
