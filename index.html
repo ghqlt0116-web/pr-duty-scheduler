@@ -566,9 +566,10 @@ function getDtype(ds){
     return isHoliday(nd)||isTempHol(nd)||isAnniversary(nd);
   }
 
-  // 10/9(한글날), 12/25(크리스마스): 금요일 공휴일 → 휴일 저녁 가판(6번)
+  // 특정 공휴일: 다음날 토요일이라 스크랩 없음 → 휴일 저녁 가판(6번)
+  // 10/9(한글날,금), 12/25(크리스마스,금), 1/1(신정,금인 경우)
   const mmdd=ds.slice(5);
-  if(mmdd==='10-09'||mmdd==='12-25'){
+  if(mmdd==='10-09'||mmdd==='12-25'||(mmdd==='01-01'&&dow===5)){
     return 6;
   }
 
