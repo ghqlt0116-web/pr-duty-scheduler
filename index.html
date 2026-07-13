@@ -555,20 +555,25 @@ function getDtype(ds){
   // 설날 전날·당일, 추석 전날·당일 → 당직 없음
   if(name==='설날 전날'||name==='추석 전날'||name==='설날'||name==='추석') return null;
 
-  // 다음날이 공휴일/임시공휴일인지 (토요일 제외)
-  // 토요일은 신문 없으므로 6번 대상 아님
-  function nextIsHoliday(){
-    if(ndDow===6) return false; // 토요일이면 6번 아님
-    return isHoliday(nd)||isTempHol(nd)||isAnniversary(nd);
-  }
-
   // 설날 다음날·추석 다음날
   if(name==='설날 다음날'||name==='추석 다음날'){
     return nextIsHoliday()?6:'1a';
   }
 
+  // 다음날이 공휴일/임시공휴일인지 (토요일 제외)
+  function nextIsHoliday(){
+    if(ndDow===6) return false;
+    return isHoliday(nd)||isTempHol(nd)||isAnniversary(nd);
+  }
+
+  // 10/9(한글날), 12/25(크리스마스): 금요일 공휴일 → 휴일 저녁 가판(6번)
+  const mmdd=ds.slice(5);
+  if(mmdd==='10-09'||mmdd==='12-25'){
+    return 6;
+  }
+
   // 9/22: 다음날이 창립기념일이면 → 금요일(4번)
-  if(ds.slice(5)==='09-22'&&isAnniversary(nd)) return 4;
+  if(mmdd==='09-22'&&isAnniversary(nd)) return 4;
 
   // 임시공휴일/창립기념일
   if(isTempHol(ds)||isAnniversary(ds)){
@@ -576,8 +581,6 @@ function getDtype(ds){
   }
 
   // 일요일 or 법정공휴일
-  // 다음날이 공휴일/임시공휴일 → 6번(휴일 저녁 가판)
-  // 다음날이 토요일 또는 평일 → 1a(일요일/휴일)
   if(dow===0||isHoliday(ds)){
     return nextIsHoliday()?6:'1a';
   }
@@ -656,7 +659,7 @@ function buildSchedule(y,m){
 }
 
 function autoSwap(result){
-  const NO_SWAP=new Set([6]); // 휴일 저녁 가판만 교체 안 함
+  const NO_SWAP=new Set(['1a','1b',6]);
   function ik(dt){return typeof dt==='string'?1:dt;}
   function canSwap(dtype){return!NO_SWAP.has(dtype);}
   function dateDiff(a,b){return Math.abs((new Date(a+'T00:00:00')-new Date(b+'T00:00:00'))/86400000);}
@@ -666,10 +669,14 @@ function autoSwap(result){
     const a=result[i],b=result[j];
     if(!a||!b) return false;
     if(a.autoSwapped||b.autoSwapped) return false;
+    // 둘 다 canSwap이어야 교체 가능
     if(!canSwap(a.dtype)||!canSwap(b.dtype)) return false;
+    // 같은 유형끼리만
     if(ik(a.dtype)!==ik(b.dtype)) return false;
+    // 신민경은 화요일 자리로 못 감
     if(b.member==='신민경'&&isTue(a.date)) return false;
     if(a.member==='신민경'&&isTue(b.date)) return false;
+    // 교체 후 연속 발생 체크
     const n=result.length;
     const ip=i>0&&i-1!==j?result[i-1]:null;
     const in_=i+1<n&&i+1!==j?result[i+1]:null;
@@ -686,7 +693,6 @@ function autoSwap(result){
   }
 
   // ── 1단계: 신민경 화요일 교체 ──
-  // 우선순위: 바로 앞날(i-1) → 바로 뒷날(i+1) → 앞쪽 확장 → 뒤쪽 확장
   for(let i=0;i<result.length;i++){
     const s=result[i];
     if(s.member!=='신민경'||!isTue(s.date)||!canSwap(s.dtype)) continue;
@@ -696,17 +702,17 @@ function autoSwap(result){
     if(i>0&&ik(result[i-1].dtype)===k) done=safeSwap(result,i,i-1);
     // 바로 뒷날
     if(!done&&i+1<result.length&&ik(result[i+1].dtype)===k) done=safeSwap(result,i,i+1);
-    // 앞쪽 확장 (바로 앞은 이미 시도했으니 i-2부터)
+    // 뒤쪽 확장 (i+2~i+7)
     if(!done)
       for(let j=i+2;j<Math.min(result.length,i+7)&&!done;j++)
         if(ik(result[j].dtype)===k) done=safeSwap(result,i,j);
-    // 뒤쪽 확장
+    // 앞쪽 확장 (i-2~i-7)
     if(!done)
       for(let j=i-2;j>=Math.max(0,i-7)&&!done;j--)
         if(ik(result[j].dtype)===k) done=safeSwap(result,i,j);
   }
 
-  // ── 2단계: 연속당직 교체 ──
+  // ── 2단계: 연속당직 교체 (3패스) ──
   for(let pass=0;pass<3;pass++){
     result.forEach(s=>{s.consec=false;});
     for(let i=1;i<result.length;i++){
@@ -717,28 +723,35 @@ function autoSwap(result){
     for(let i=1;i<result.length;i++){
       const p=result[i-1],c=result[i];
       if(!(p.consec&&c.consec)) continue;
-
-      // 연속된 두 날 중 어느 하나라도 6번(대체/금공휴)이면 교체 안 함
+      // 휴일 저녁 가판(6번) 연속은 교체 안 함
       if(p.dtype===6||c.dtype===6) continue;
-
       let done=false;
 
-      // 우선순위1: 앞날짜(p) 앞쪽 탐색
+      // 우선순위1: p가 교체 가능 → p를 앞쪽 같은 유형과 교체
       if(canSwap(p.dtype)){
         for(let j=i-2;j>=Math.max(0,i-14)&&!done;j--)
-          if(ik(result[j].dtype)===ik(p.dtype)){done=safeSwap(result,i-1,j);if(done)changed=true;}
+          if(ik(result[j].dtype)===ik(p.dtype)){
+            done=safeSwap(result,i-1,j);
+            if(done) changed=true;
+          }
       }
 
-      // 우선순위2: 뒤날짜(c) 앞쪽 탐색 (p가 NO_SWAP인 경우)
-      if(!done&&canSwap(c.dtype)){
-        for(let j=i-2;j>=Math.max(0,i-14)&&!done;j--)
-          if(ik(result[j].dtype)===ik(c.dtype)){done=safeSwap(result,i,j);if(done)changed=true;}
-      }
-
-      // 우선순위3: 뒤날짜(c) 뒤쪽 탐색
+      // 우선순위2: p가 NO_SWAP(1a 등) → c를 뒤쪽 같은 유형과 먼저 교체
       if(!done&&canSwap(c.dtype)){
         for(let j=i+1;j<Math.min(result.length,i+14)&&!done;j++)
-          if(ik(result[j].dtype)===ik(c.dtype)){done=safeSwap(result,i,j);if(done)changed=true;}
+          if(ik(result[j].dtype)===ik(c.dtype)){
+            done=safeSwap(result,i,j);
+            if(done) changed=true;
+          }
+      }
+
+      // 우선순위3: c를 앞쪽 같은 유형과 교체
+      if(!done&&canSwap(c.dtype)){
+        for(let j=i-2;j>=Math.max(0,i-14)&&!done;j--)
+          if(ik(result[j].dtype)===ik(c.dtype)){
+            done=safeSwap(result,i,j);
+            if(done) changed=true;
+          }
       }
     }
     if(!changed) break;
