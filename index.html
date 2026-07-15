@@ -652,10 +652,20 @@ function buildSchedule(y,m){
       if(ao.length>0){
         let member,isOvr=false,origMember=null,swapNote=null,swapDate=null;
         const ovrObj=ST.overrides[ds];
-        if(ovrObj){
+        if(ovrObj&&(typeof ovrObj==='string'||(typeof ovrObj==='object'&&ovrObj.member))){
+          // 담당자 변경이 있는 경우
           member=typeof ovrObj==='object'?ovrObj.member:ovrObj;
           swapNote=ovrObj.swapNote||null;swapDate=ovrObj.swapDate||null;isOvr=true;
           const base=ao[idx[ik2]%ao.length];if(base!==member)origMember=base;
+        }else if(ovrObj&&ovrObj.overrideDtype){
+          // override_dtype만 있는 경우 (당직 유형만 변경, 담당자는 순번대로)
+          let assigned=null;
+          for(let i=0;i<ao.length;i++){
+            const cand=ao[(idx[ik2]+i)%ao.length];
+            if(!isAbsent(cand,ds)){if(i>0)origMember=ao[idx[ik2]%ao.length];assigned=cand;break;}
+          }
+          member=assigned||ao[idx[ik2]%ao.length];
+          isOvr=false;
         }else{
           let assigned=null;
           for(let i=0;i<ao.length;i++){
@@ -981,11 +991,18 @@ function openHolEdit(ds){
 }
 
 function closeHolEdit(){
-  const m=document.getElementById('holEditModal');
-  if(m) m.style.display='none';
+  document.getElementById('holEditModal').style.display='none';
   window._holEditDs=null;
 }
 
+async function resetHolDtype(){
+  const ds=window._holEditDs;
+  if(!ds) return;
+  const hol=ST.holidays.find(h=>h.date===ds);
+  await saveHolDtype(hol?.id||'',ds,'');
+  document.getElementById('holEditModal').style.display='none';
+  window._holEditDs=null;
+}
 async function confirmHolDtype(){
   const ds=window._holEditDs;
   const dtype=document.getElementById('holEditSelect').value;
@@ -1536,15 +1553,26 @@ for(let y=2026;y<=2027;y++){const o=document.createElement('option');o.value=y;o
   ySel.value=curY;mSel.value=curM;renderLegend();loadAll();setInterval(loadAll,30000);
 }
 init();
+  // 공휴일 팝업 저장 버튼 연결
+  document.addEventListener('DOMContentLoaded',function(){
+    const saveBtn=document.getElementById('holSaveBtnDirect');
+    if(saveBtn) saveBtn.addEventListener('click', async function(){
+      await confirmHolDtype();
+      document.getElementById('holEditModal').style.display='none';
+    });
+  });
 </script>
 
 <!-- 공휴일 순번 수정 팝업 -->
-<div id="holEditModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;">
+<div id="holEditModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;" onclick="if(event.target===this)closeHolEdit()">
   <div style="background:#fff;border-radius:14px;padding:22px;width:90%;max-width:340px;box-shadow:0 8px 40px rgba(0,0,0,.3)">
-    <div id="holEditTitle" style="font-size:16px;font-weight:700;margin-bottom:4px;color:#111"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <div id="holEditTitle" style="font-size:16px;font-weight:700;color:#111"></div>
+      <button onclick="document.getElementById('holEditModal').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;color:#999;line-height:1">×</button>
+    </div>
     <div id="holEditHolName" style="font-size:12px;color:#666;margin-bottom:16px"></div>
     <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:#111">당직 순번 변경</div>
-    <select id="holEditSelect" style="width:100%;font-size:13px;padding:9px;border-radius:8px;border:1px solid #ddd;background:#f9f9f9;color:#111;margin-bottom:18px">
+    <select id="holEditSelect" style="width:100%;font-size:13px;padding:9px;border-radius:8px;border:1px solid #ddd;background:#f9f9f9;color:#111;margin-bottom:12px">
       <option value="">로직대로 (기본값)</option>
       <option value="1a">일요일/휴일</option>
       <option value="6">휴일 저녁 가판</option>
@@ -1554,9 +1582,11 @@ init();
       <option value="3">WF 당직</option>
       <option value="null">당직 없음</option>
     </select>
-    <div style="display:flex;gap:10px">
-      <button onclick="closeHolEdit()" style="flex:1;padding:11px;border-radius:8px;border:1px solid #ddd;background:#f3f4f6;color:#111;font-size:13px;font-weight:600;cursor:pointer">취소</button>
-      <button onclick="confirmHolDtype()" style="flex:1;padding:11px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-size:13px;font-weight:600;cursor:pointer">저장</button>
+    <button onclick="document.getElementById('holEditModal').style.display='none';window._holEditDs=null;" style="width:100%;padding:10px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:8px"
+      id="holSaveBtnDirect">저장</button>
+    <div style="display:flex;gap:8px">
+      <button onclick="document.getElementById('holEditModal').style.display='none';window._holEditDs=null;" style="flex:1;padding:9px;border-radius:8px;border:1px solid #ddd;background:#f3f4f6;color:#111;font-size:12px;font-weight:600;cursor:pointer">취소</button>
+      <button onclick="resetHolDtype()" style="flex:1;padding:9px;border-radius:8px;border:1px solid #ddd;background:#f3f4f6;color:#111;font-size:12px;font-weight:600;cursor:pointer">원래대로</button>
     </div>
   </div>
 </div>
