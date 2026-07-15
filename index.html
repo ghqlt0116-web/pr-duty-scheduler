@@ -924,20 +924,7 @@ function renderHolidays(){
   }
   html+=`</div>`;
 
-  // 공휴일 추가 폼
-  html+=`<div style="margin-top:16px;padding:14px;background:var(--bg2);border-radius:var(--rs)">
-    <div style="font-size:13px;font-weight:600;margin-bottom:10px">공휴일 추가</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-      <input id="newHolDate" type="date" class="fi" style="font-size:13px">
-      <input id="newHolName" type="text" placeholder="이름" class="fi" style="font-size:13px;width:110px">
-      <select id="newHolType" class="fi" style="font-size:13px">
-        <option value="regular">법정공휴일</option>
-        <option value="temp">임시공휴일</option>
-        <option value="company">창립기념일</option>
-      </select>
-      <button class="btn btn-primary" onclick="addHoliday()" style="font-size:13px">추가</button>
-    </div>
-  </div>`;
+  html+=`<div style="margin-top:14px;padding:10px 14px;background:var(--bg2);border-radius:var(--rs);font-size:11px;color:var(--text2)">📌 날짜를 클릭하면 공휴일 추가/수정/삭제 및 당직 순번을 변경할 수 있어요</div>`;
 
   el.innerHTML=html;
 
@@ -979,15 +966,93 @@ function openHolEdit(ds){
   const dow=['일','월','화','수','목','금','토'][d.getDay()];
   const hol=ST.holidays.find(h=>h.date===ds);
   const subHols=getSubHolidays();
-  const holName=hol?.name||subHols[ds]||'';
+  const subName=subHols[ds];
   const holDtype=hol?.dtype||ST.overrides[ds]?.overrideDtype||'';
   const dtype=getDtype(ds);
   const di=dtype!==null?DI[dtype]:null;
+  const isAuto=!hol?.dtype&&!ST.overrides[ds]?.overrideDtype;
 
   document.getElementById('holEditTitle').textContent=`${ds.slice(5)} (${dow})`;
-  document.getElementById('holEditHolName').textContent=(holName?holName+' · ':'')+'현재: '+(di?di.label:'당직없음');
+  document.getElementById('holEditCurDtype').innerHTML=
+    `현재 당직: <strong>${di?di.label:'당직없음'}</strong>${isAuto?' <span style="color:#9ca3af;font-size:11px">(자동)</span>':'<span style="color:#f59e0b;font-size:11px"> (변경됨)</span>'}`;
   document.getElementById('holEditSelect').value=holDtype;
+
+  // 공휴일 섹션
+  const sec=document.getElementById('holEditHolSection');
+  if(hol&&hol.type!=='sub'){
+    // 기존 공휴일 있음 → 수정/삭제
+    sec.innerHTML=`
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <input id="holNameInp" type="text" value="${hol.name}" style="flex:1;font-size:13px;padding:7px 10px;border-radius:8px;border:1px solid #ddd;background:#f9f9f9;color:#111">
+        <select id="holTypeInp" style="font-size:12px;padding:7px;border-radius:8px;border:1px solid #ddd;background:#f9f9f9;color:#111">
+          <option value="regular"${hol.type==='regular'?' selected':''}>법정공휴일</option>
+          <option value="temp"${hol.type==='temp'?' selected':''}>임시공휴일</option>
+          <option value="company"${hol.type==='company'?' selected':''}>창립기념일</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button onclick="saveHolInfo('${hol.id}')" style="flex:2;padding:8px;border-radius:8px;border:none;background:#10b981;color:#fff;font-size:12px;font-weight:600;cursor:pointer">공휴일 저장</button>
+        <button onclick="deleteHolAndClose('${hol.id}')" style="flex:1;padding:8px;border-radius:8px;border:none;background:#ef4444;color:#fff;font-size:12px;font-weight:600;cursor:pointer">삭제</button>
+      </div>`;
+  } else if(subName){
+    // 대체공휴일 (자동계산, 수정불가)
+    sec.innerHTML=`<div style="font-size:12px;color:#9ca3af;padding:8px;background:#f9fafb;border-radius:8px">${subName} (자동 계산됨)</div>`;
+  } else {
+    // 공휴일 없음 → 추가
+    sec.innerHTML=`
+      <div style="display:flex;gap:6px;margin-bottom:6px">
+        <input id="holNameInp" type="text" placeholder="공휴일 이름" style="flex:1;font-size:13px;padding:7px 10px;border-radius:8px;border:1px solid #ddd;background:#f9f9f9;color:#111">
+        <select id="holTypeInp" style="font-size:12px;padding:7px;border-radius:8px;border:1px solid #ddd;background:#f9f9f9;color:#111">
+          <option value="temp">임시공휴일</option>
+          <option value="regular">법정공휴일</option>
+          <option value="company">창립기념일</option>
+        </select>
+      </div>
+      <button onclick="addHolFromPopup('${ds}')" style="width:100%;padding:8px;border-radius:8px;border:none;background:#10b981;color:#fff;font-size:12px;font-weight:600;cursor:pointer">공휴일 추가</button>`;
+  }
+
   document.getElementById('holEditModal').style.display='flex';
+}
+
+async function saveHolInfo(id){
+  const name=document.getElementById('holNameInp')?.value?.trim();
+  const type=document.getElementById('holTypeInp')?.value;
+  if(!name) return alert('이름을 입력해주세요');
+  try{
+    await api.updateHoliday(id,{name,type});
+    setSS('ok','저장됨');
+    clearHolCache();
+    await loadAll();
+    renderByView();
+    closeHolEdit();
+  }catch(e){setSS('err','저장 실패');console.error(e);}
+}
+
+async function deleteHolAndClose(id){
+  if(!confirm('공휴일을 삭제할까요?')) return;
+  try{
+    await api.deleteHoliday(id);
+    setSS('ok','삭제됨');
+    clearHolCache();
+    await loadAll();
+    renderByView();
+    closeHolEdit();
+  }catch(e){setSS('err','삭제 실패');console.error(e);}
+}
+
+async function addHolFromPopup(ds){
+  const name=document.getElementById('holNameInp')?.value?.trim();
+  const type=document.getElementById('holTypeInp')?.value;
+  if(!name) return alert('이름을 입력해주세요');
+  try{
+    await api.addHoliday({date:ds,name,type});
+    setSS('ok','추가됨');
+    clearHolCache();
+    await loadAll();
+    // 팝업 갱신
+    openHolEdit(ds);
+    renderByView();
+  }catch(e){setSS('err','추가 실패');console.error(e);}
 }
 
 function closeHolEdit(){
@@ -1558,16 +1623,24 @@ init();
 
 </script>
 
-<!-- 공휴일 순번 수정 팝업 -->
+<!-- 공휴일/당직 수정 팝업 -->
 <div id="holEditModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;" onclick="if(event.target===this)closeHolEdit()">
-  <div style="background:#fff;border-radius:14px;padding:22px;width:90%;max-width:340px;box-shadow:0 8px 40px rgba(0,0,0,.3)">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+  <div style="background:#fff;border-radius:14px;padding:20px;width:92%;max-width:360px;box-shadow:0 8px 40px rgba(0,0,0,.3);max-height:90vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <div id="holEditTitle" style="font-size:16px;font-weight:700;color:#111"></div>
-      <button onclick="document.getElementById('holEditModal').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;color:#999;line-height:1">×</button>
+      <button onclick="closeHolEdit()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#999;line-height:1;padding:0 4px">×</button>
     </div>
-    <div id="holEditHolName" style="font-size:12px;color:#666;margin-bottom:16px"></div>
-    <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:#111">당직 순번 변경</div>
-    <select id="holEditSelect" style="width:100%;font-size:13px;padding:9px;border-radius:8px;border:1px solid #ddd;background:#f9f9f9;color:#111;margin-bottom:12px">
+
+    <!-- 현재 당직 순번 표시 -->
+    <div id="holEditCurDtype" style="margin-bottom:14px;padding:8px 12px;background:#f3f4f6;border-radius:8px;font-size:12px;color:#555"></div>
+
+    <!-- 공휴일 섹션 -->
+    <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #e5e7eb">공휴일 설정</div>
+    <div id="holEditHolSection"></div>
+
+    <!-- 당직 순번 섹션 -->
+    <div style="font-size:12px;font-weight:700;color:#374151;margin:14px 0 8px;padding-bottom:6px;border-bottom:1px solid #e5e7eb">당직 순번 변경</div>
+    <select id="holEditSelect" style="width:100%;font-size:13px;padding:9px;border-radius:8px;border:1px solid #ddd;background:#f9f9f9;color:#111;margin-bottom:6px">
       <option value="">로직대로 (기본값)</option>
       <option value="1a">일요일/휴일</option>
       <option value="6">휴일 저녁 가판</option>
@@ -1577,11 +1650,11 @@ init();
       <option value="3">WF 당직</option>
       <option value="null">당직 없음</option>
     </select>
-    <button onclick="confirmHolDtype()" style="width:100%;padding:10px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:8px">저장</button>
-    <div style="display:flex;gap:8px">
-      <button onclick="document.getElementById('holEditModal').style.display='none';window._holEditDs=null;" style="flex:1;padding:9px;border-radius:8px;border:1px solid #ddd;background:#f3f4f6;color:#111;font-size:12px;font-weight:600;cursor:pointer">취소</button>
-      <button onclick="resetHolDtype()" style="flex:1;padding:9px;border-radius:8px;border:1px solid #ddd;background:#f3f4f6;color:#111;font-size:12px;font-weight:600;cursor:pointer">원래대로</button>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <button onclick="confirmHolDtype()" style="flex:2;padding:10px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-size:13px;font-weight:600;cursor:pointer">저장</button>
+      <button onclick="resetHolDtype()" style="flex:1;padding:10px;border-radius:8px;border:1px solid #ddd;background:#f3f4f6;color:#555;font-size:12px;font-weight:600;cursor:pointer">원래대로</button>
     </div>
+    <button onclick="closeHolEdit()" style="width:100%;padding:9px;border-radius:8px;border:1px solid #ddd;background:#fff;color:#555;font-size:12px;font-weight:600;cursor:pointer">취소</button>
   </div>
 </div>
 </body>
