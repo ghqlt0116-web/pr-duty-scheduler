@@ -1009,7 +1009,8 @@ async function confirmHolDtype(){
   if(!ds) return;
   const hol=ST.holidays.find(h=>h.date===ds);
   await saveHolDtype(hol?.id||'',ds,dtype);
-  closeHolEdit();
+  document.getElementById('holEditModal').style.display='none';
+  window._holEditDs=null;
 }
 
 function previewHolDtype(ds,val){}
