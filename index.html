@@ -1105,9 +1105,10 @@ async function saveHolDtype(id,ds,dtype){
       await sb('POST','overrides',{date:ds,override_dtype:val},null,'resolution=merge-duplicates,return=minimal');
     }
     setSS('ok','저장됨');
+    clearHolCache();
     await loadAll();
     window._holEditDs=null;
-    renderHolidays();
+    renderByView();
   }catch(e){setSS('err','저장 실패');console.error('saveHolDtype:',e);}
 }
 function setHolYear(y){holYear=y;renderHolidays();}
@@ -1553,14 +1554,7 @@ for(let y=2026;y<=2027;y++){const o=document.createElement('option');o.value=y;o
   ySel.value=curY;mSel.value=curM;renderLegend();loadAll();setInterval(loadAll,30000);
 }
 init();
-  // 공휴일 팝업 저장 버튼 연결
-  document.addEventListener('DOMContentLoaded',function(){
-    const saveBtn=document.getElementById('holSaveBtnDirect');
-    if(saveBtn) saveBtn.addEventListener('click', async function(){
-      await confirmHolDtype();
-      document.getElementById('holEditModal').style.display='none';
-    });
-  });
+
 </script>
 
 <!-- 공휴일 순번 수정 팝업 -->
@@ -1582,8 +1576,7 @@ init();
       <option value="3">WF 당직</option>
       <option value="null">당직 없음</option>
     </select>
-    <button onclick="document.getElementById('holEditModal').style.display='none';window._holEditDs=null;" style="width:100%;padding:10px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:8px"
-      id="holSaveBtnDirect">저장</button>
+    <button onclick="confirmHolDtype()" style="width:100%;padding:10px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:8px">저장</button>
     <div style="display:flex;gap:8px">
       <button onclick="document.getElementById('holEditModal').style.display='none';window._holEditDs=null;" style="flex:1;padding:9px;border-radius:8px;border:1px solid #ddd;background:#f3f4f6;color:#111;font-size:12px;font-weight:600;cursor:pointer">취소</button>
       <button onclick="resetHolDtype()" style="flex:1;padding:9px;border-radius:8px;border:1px solid #ddd;background:#f3f4f6;color:#111;font-size:12px;font-weight:600;cursor:pointer">원래대로</button>
