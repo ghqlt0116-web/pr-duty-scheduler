@@ -42,7 +42,7 @@ body{font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;ba
 .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
 .cal-dh{text-align:center;font-size:12px;font-weight:700;color:var(--text3);padding:4px 0;letter-spacing:.5px;}
 .cal-dh.sun{color:#dc2626;}.cal-dh.sat{color:#2563eb;}
-.cal-dc{border:1px solid var(--border);border-radius:var(--rs);padding:5px 5px 4px;min-height:82px;background:var(--bg3);cursor:pointer;transition:border-color .12s,box-shadow .12s;position:relative;}
+.cal-dc{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:var(--rs);padding:5px 5px 4px;min-height:82px;background:var(--bg3);cursor:pointer;transition:border-color .12s,box-shadow .12s;position:relative;}
 .cal-dc:hover:not(.noduty):not(.empty){border-color:var(--border2);box-shadow:var(--sh);}
 .cal-dc.empty{background:transparent;border-color:transparent;cursor:default;pointer-events:none;}
 .cal-dc.noduty{background:var(--bg2);border-color:transparent;cursor:default;}
@@ -54,7 +54,7 @@ body{font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;ba
 .cal-dn{font-size:13px;font-weight:600;color:var(--text3);margin-bottom:2px;}
 .cal-dc.sun-c .cal-dn{color:#dc2626;}.cal-dc.sat-c .cal-dn{color:#2563eb;}
 .cal-hol{font-size:12px;color:#dc2626;font-weight:600;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.cal-mb{font-size:14px;padding:3px 6px;border-radius:3px;display:inline-block;font-weight:700;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px;}
+.cal-mb{font-size:14px;padding:3px 6px;border-radius:3px;display:inline-block;font-weight:700;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px;align-self:flex-start;}
 .cal-dtype{font-size:12px;font-weight:600;color:var(--text3);margin-top:1px;}
 .cal-tag{font-size:11px;padding:1px 4px;border-radius:2px;margin-top:2px;font-weight:600;display:inline-block;}
 .cal-warn{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;}
@@ -143,26 +143,32 @@ body{font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;ba
 .dtable td{padding:7px 8px;border-bottom:1px solid var(--bg2);}
 .dtable tr:last-child td{border-bottom:none;}
 @media(max-width:640px){
-  .app{padding:0 8px 60px;}
-  .header h1{font-size:14px;}
+  .app{padding:0 6px 60px;}
+  .header{padding:10px 0 8px;gap:6px;}
+  .header h1{font-size:15px;}
   .header p{display:none;}
   .nav{gap:1px;}
-  .nav-tab{font-size:10px;padding:6px 3px;}
-  .month-label{font-size:15px;}
+  .nav-tab{font-size:11px;padding:7px 2px;}
+  .month-label{font-size:16px;}
   .cal{gap:2px;}
-  .cal-dh{font-size:9px;padding:2px 0;}
-  .cal-dc{min-height:60px;padding:3px;}
-  .cal-mb{font-size:11px;padding:2px 3px;}
-  .cal-dtype{font-size:9px;}
-  .cal-dn{font-size:10px;}
+  .cal-dh{font-size:10px;padding:3px 0;}
+  .cal-dc{min-height:72px;padding:4px 3px;}
+  .cal-mb{font-size:13px;padding:2px 4px;font-weight:700;}
+  .cal-dn{font-size:11px;font-weight:700;}
   .cal-tag{font-size:8px;padding:1px 3px;}
-  .cal-hol{font-size:9px;margin-bottom:1px;}
-  .legend{gap:4px;}
-  .leg{font-size:10px;}
-  #memberCount>div{font-size:11px;padding:3px 7px;}
-  .hol-grid{grid-template-columns:1fr;}
-  .form-row{flex-wrap:wrap;}
-}.cal-dc{min-height:68px;}.month-label{font-size:17px;}}
+  .cal-hol{font-size:9px;margin-bottom:2px;}
+  .legend{gap:3px;flex-wrap:wrap;}
+  .leg{font-size:10px;gap:3px;}
+  #memberCount{gap:4px;}
+  #memberCount>div{font-size:12px;padding:4px 8px;}
+  #weeklyBanner>div{padding:6px 8px;gap:6px;}
+  .stat-grid{grid-template-columns:repeat(2,1fr);}
+  .section-title{font-size:13px;}
+  .dtable{font-size:12px;}
+  .btn{font-size:12px;padding:5px 10px;}
+  .form-row{flex-wrap:wrap;gap:6px;}
+  .fi{font-size:13px;}
+}.cal-dc{min-height:72px;}.month-label{font-size:17px;}}
 </style>
 </head>
 <body>
@@ -245,48 +251,7 @@ body{font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;ba
     <div class="hol-year-tabs" id="holYearTabs"></div>
     <div id="holContent"></div>
   </div>
-  <div id="viewOrders" style="display:none">
-    <div class="notice n-success">✅ 버전2 순번 — 부담 그룹 내 2칸 시프트 구조, 9월부터 적용</div>
-    <table class="dtable">
-      <thead><tr><th>유형</th><th>부담</th><th>9월 첫 배정자</th><th>순번</th></tr></thead>
-      <tbody id="ordersBody"></tbody>
-    </table>
-  </div>
-
-  
-
-    <!-- 순번 비교 -->
-    <div class="section-title" style="margin-bottom:10px">유형별 순번 비교</div>
-    <table class="dtable" id="compareOrdersTable">
-      <thead><tr><th>유형</th><th>기존 순번</th><th>개선 순번</th></tr></thead>
-      <tbody id="compareOrdersBody"></tbody>
-    </table>
-
-    <div class="divider"></div>
-
-    <!-- 월별 당직 횟수 -->
-    <div class="section-title" style="margin-bottom:6px">월별 인당 당직 횟수</div>
-    <div style="display:flex;gap:8px;margin-bottom:10px;">
-      <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2)"><div style="width:12px;height:12px;background:#B5D4F4;border-radius:2px"></div>기존 순번</div>
-      <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2)"><div style="width:12px;height:12px;background:#5DCAA5;border-radius:2px"></div>개선 순번</div>
-      <div style="font-size:11px;color:var(--red);margin-left:4px">빨간 숫자: 해당 월 최대</div>
-    </div>
-    <div style="overflow-x:auto">
-      <table class="dtable" id="compareMonthTable" style="min-width:600px">
-        <thead id="compareMonthHead"></thead>
-        <tbody id="compareMonthBody"></tbody>
-      </table>
-    </div>
-
-    <div class="divider"></div>
-
-    <!-- 총합 비교 -->
-    <div class="section-title" style="margin-bottom:10px">5개월 총합 비교</div>
-    <div id="compareTotalBars"></div>
-
-    <!-- 요약 카드 -->
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px" id="compareSummary"></div>
-  </div>
+  <div id="viewOrders" style="display:none"></div>
 </div>
 <div class="modal-overlay" id="modalOverlay" style="display:none" onclick="closeModal(event)">
   <div class="modal" onclick="event.stopPropagation()">
@@ -983,7 +948,7 @@ function renderCal(){
       else if(s.autoSwapped&&s.swapWith)tags+=`<span class="cal-tag cal-auto-tag">연속당직교체(${s.swapWith.slice(5)})</span>`;
       else if(s.swapNote)tags+=`<span class="cal-tag cal-swap-tag">🔄 ${s.swapNote}</span>`;
       else if(s.isOvr)tags+=`<span class="cal-tag cal-mod-tag">✎${s.origMember?' '+s.origMember+'→':''}</span>`;
-      h+=`<div class="${cc}" onclick="openEdit('${ds}')"><div class="cal-dn">${d}</div>${holName?`<div class="cal-hol">${holName}</div>`:''}<span class="cal-mb ${di.cls}">${s.member}</span><div class="cal-dtype">${di.label}</div>${tags}</div>`;
+      h+=`<div class="${cc}" onclick="openEdit('${ds}')"><div class="cal-dn">${d}</div>${holName?`<div class="cal-hol">${holName}</div>`:''}<span class="cal-mb ${di.cls}">${s.member}</span>${tags?`<div style="margin-top:2px">${tags}</div>`:''}</div>`;
     }else{
       h+=`<div class="cal-dc noduty${dowCls}${isToday?' today':''}" ><div class="cal-dn">${d}</div>${holName?`<div class="cal-hol">${holName}</div>`:''}</div>`;
     }
@@ -1032,7 +997,7 @@ function renderCal(){
   }
 }
 function renderMembers(){
-  const active=ST.members.filter(m=>!m.deletedAt),deleted=ST.members.filter(m=>m.deletedAt);
+  const active=ST.members.filter(m=>!m.deletedAt).sort((a,b)=>a.name.localeCompare(b.name,'ko')),deleted=ST.members.filter(m=>m.deletedAt);
   let html='';
   active.forEach(mb=>{
     const absent=ST.absences.find(a=>a.member===mb.name&&fmt(new Date())>=a.start&&fmt(new Date())<=a.end);
@@ -1744,7 +1709,7 @@ init();
       <button onclick="confirmHolDtype()" style="flex:2;padding:10px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-size:13px;font-weight:600;cursor:pointer">저장</button>
       <button onclick="resetHolDtype()" style="flex:1;padding:10px;border-radius:8px;border:1px solid #ddd;background:#f3f4f6;color:#555;font-size:12px;font-weight:600;cursor:pointer">원래대로</button>
     </div>
-    <button onclick="closeHolEdit()" style="width:100%;padding:9px;border-radius:8px;border:1px solid #ddd;background:#fff;color:#555;font-size:12px;font-weight:600;cursor:pointer">취소</button>
+    <button onclick="closeDtypeModal()" style="width:100%;padding:9px;border-radius:8px;border:1px solid #ddd;background:#fff;color:#555;font-size:12px;font-weight:600;cursor:pointer">취소</button>
   </div>
 </div>
 </body>
