@@ -171,10 +171,7 @@ body{font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;ba
     <div><h1>📰 PR팀 가판 당직 스케줄러</h1><p>2026년 9월~ · 날짜 클릭으로 수정 가능</p></div>
     <div class="header-right">
       <div class="sync"><div class="sync-dot" id="syncDot"></div><span id="syncText">연결 중...</span></div>
-      <div style="display:flex;gap:2px;background:var(--bg2);border-radius:var(--rs);padding:3px;">
-        <button id="btnOld" onclick="setOrderVer(false)" style="padding:4px 10px;border-radius:4px;border:none;font-size:11px;font-weight:600;cursor:pointer;background:var(--bg3);box-shadow:var(--sh);color:var(--text);">기존 순번</button>
-        <button id="btnNew" onclick="setOrderVer(true)" style="padding:4px 10px;border-radius:4px;border:none;font-size:11px;font-weight:600;cursor:pointer;background:none;color:var(--text2);">개선 순번</button>
-      </div>
+
       <select class="fi" id="yearSel" onchange="onDateChange()"></select>
       <select class="fi" id="monthSel" onchange="onDateChange()"></select>
     </div>
@@ -184,7 +181,6 @@ body{font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;ba
     <button class="nav-tab" onclick="setView('members')">👥 인원</button>
     <button class="nav-tab" onclick="setView('holidays')">🗓 공휴일</button>
     <button class="nav-tab" onclick="setView('orders')">📋 순번</button>
-    <button class="nav-tab" onclick="setView('compare')">📊 비교</button>
   </div>
   <div id="viewCal">
     <div class="month-nav">
@@ -222,8 +218,14 @@ body{font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;ba
     </div>
     <div class="form-row">
       <span class="form-label">사유</span>
-      <input class="fi" id="absReason" placeholder="장기출장, 육아휴직 등" style="flex:1;min-width:110px">
-      <button class="btn btn-primary btn-sm" onclick="addAbsence()">등록</button>
+      <select class="fi" id="absReason" style="min-width:90px">
+        <option value="휴가">휴가</option>
+        <option value="출장">출장</option>
+        <option value="휴직">휴직</option>
+        <option value="병가">병가</option>
+      </select>
+      <input type="hidden" id="absEditId" value="">
+      <button class="btn btn-primary btn-sm" onclick="addAbsence()" id="absSubmitBtn">등록</button>
     </div>
     <div class="section-title" style="margin-top:12px">등록된 부재</div>
     <div class="absence-list" id="absenceList"></div>
@@ -251,8 +253,7 @@ body{font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;ba
     </table>
   </div>
 
-  <div id="viewCompare" style="display:none">
-    <div class="notice n-info">📊 기존 순번(담당자 제공)과 개선 순번(시프트 구조)의 2026년 9월~2027년 1월 비교</div>
+  
 
     <!-- 순번 비교 -->
     <div class="section-title" style="margin-bottom:10px">유형별 순번 비교</div>
@@ -342,6 +343,9 @@ const api={
   upsertOverride:(d)=>sb('POST','overrides',d,{'on_conflict':'date'}),
   deleteOverride:(date)=>sb('DELETE','overrides',null,{'date':'eq.'+date}),
   updateOverride:(date,d)=>sb('PATCH','overrides',d,{'date':'eq.'+date}),
+  getWeekly:()=>sb('GET','weekly_assignments',null,{'order':'year_month.asc'}),
+  setWeekly:(ym,member)=>sb('POST','weekly_assignments',{year_month:ym,member},null,'resolution=merge-duplicates,return=minimal'),
+  deleteWeekly:(ym)=>sb('DELETE','weekly_assignments',null,{'year_month':'eq.'+ym}),
   getHolidays:()=>sb('GET','custom_holidays',null,{order:'date.asc'}),
   addHoliday:(d)=>sb('POST','custom_holidays',d),
   updateHoliday:(id,d)=>sb('PATCH','custom_holidays',d,{'id':'eq.'+id}),
@@ -349,9 +353,8 @@ const api={
 };
 const BASE=['이홍연','유시화','조현우','최승훈','신동석','신민경','손정모','한수연'];
 function shift(arr,n){return[...arr.slice(n),...arr.slice(0,n)];}
-const ORDERS_NEW={'1a':BASE,'1b':BASE,2:shift(BASE,1),5:shift(BASE,2),3:BASE,4:shift(BASE,2),6:shift(BASE,1)};
-const SEP_IDX_NEW={1:4,2:6,3:3,4:6,5:0,6:2};
-const ORDERS_OLD={
+// 기존 순번 (담당자 제공, 9월 기준)
+const ORDERS={
   '1a':['신민경','손정모','한수연','이홍연','유시화','조현우','최승훈','신동석'],
   '1b':['신민경','손정모','한수연','이홍연','유시화','조현우','최승훈','신동석'],
   2:   ['손정모','한수연','이홍연','유시화','조현우','최승훈','신동석','신민경'],
@@ -360,10 +363,7 @@ const ORDERS_OLD={
   4:   ['이홍연','손정모','최승훈','신동석','조현우','신민경','한수연','유시화'],
   6:   ['신동석','이홍연','신민경','한수연','최승훈','유시화','손정모','조현우'],
 };
-const SEP_IDX_OLD={1:0,2:0,3:0,4:0,5:0,6:0};
-let USE_NEW=false;
-let ORDERS=ORDERS_OLD;
-let SEP_IDX=SEP_IDX_OLD;
+const SEP_IDX={1:0,2:0,3:0,4:0,5:0,6:0};
 const DI={'1a':{label:'일요일/휴일',cls:'dt1a'},'1b':{label:'일요일/휴일',cls:'dt1b'},2:{label:'WF 조간',cls:'dt2'},3:{label:'WF 당직',cls:'dt3'},4:{label:'금요일',cls:'dt4'},5:{label:'평일',cls:'dt5'},6:{label:'휴일 저녁 가판',cls:'dt6'}};
 const CLS_BG={dt1a:'#93c5fd',dt1b:'#93c5fd',dt2:'#6ee7b7',dt3:'#bef264',dt4:'#f9a8d4',dt5:'#c4b5fd',dt6:'#fcd34d'};
 const CLS_FG={dt1a:'#1e3a8a',dt1b:'#3730a3',dt2:'#064e3b',dt3:'#365314',dt4:'#831843',dt5:'#4c1d95',dt6:'#78350f'};
@@ -371,7 +371,7 @@ const CLS_BD={dt1a:'#bfdbfe',dt1b:'#c7d2fe',dt2:'#a7f3d0',dt3:'#bef264',dt4:'#fb
 function getClsBg(cls){return CLS_BG[cls]||'#f3f4f6';}
 function getClsFg(cls){return CLS_FG[cls]||'#374151';}
 function getClsBd(cls){return CLS_BD[cls]||'#d1d5db';}
-let ST={members:[],absences:[],overrides:{},holidays:[]};
+let ST={members:[],absences:[],overrides:{},holidays:[],weekly:{}};
 let curY=2026,curM=9,curView='cal',editDate=null,modalTab='swap';
 let swapY=2026,swapM=9,swapTargetDate=null,holYear=2026;
 function setSS(s,t){
@@ -387,7 +387,8 @@ async function loadAll(){
     ST.overrides={};
     overrides.forEach(o=>{ST.overrides[o.date]={member:o.member,swapNote:o.swap_note||null,swapDate:o.swap_date||null,overrideDtype:o.override_dtype||null};});
     ST.holidays=holidays.map(h=>({id:h.id,date:h.date,name:h.name,type:h.type,dtype:h.dtype||null}));
-    clearHolCache(); // 대체공휴일 캐시 초기화
+    clearHolCache();
+    try{const weekly=await api.getWeekly();ST.weekly={};weekly.forEach(w=>{ST.weekly[w.year_month]=w.member;});}catch(e){}
     setSS('ok','동기화됨');
     renderByView();
   }catch(e){setSS('err','연결 오류');console.error(e);}
@@ -539,6 +540,147 @@ function fmt(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'
 function fmtYM(y,m){return y+'-'+String(m).padStart(2,'0');}
 function nextDs(ds){const d=new Date(ds+'T00:00:00');d.setDate(d.getDate()+1);return fmt(d);}
 function getWFDays(y,m){const fris=[],d=new Date(y,m-1,1);while(d.getMonth()===m-1){if(d.getDay()===5)fris.push(fmt(d));d.setDate(d.getDate()+1);}return[fris[1],fris[3]].filter(Boolean);}
+
+// ── Weekly 자료 취합 ──
+const WEEKLY_ORDER=['신동석','이홍연','조현우','손정모','한수연','최승훈','유시화'];
+const WEEKLY_START='2026-09';
+
+function getWeeklyMember(ym){
+  if(ST.weekly[ym]) return ST.weekly[ym];
+  const [y,m]=ym.split('-').map(Number);
+  const [sy,sm]=WEEKLY_START.split('-').map(Number);
+  const diff=(y-sy)*12+(m-sm);
+  if(diff<0) return null;
+  const active=WEEKLY_ORDER.filter(name=>{
+    const mb=ST.members.find(x=>x.name===name);
+    return !mb||(!mb.deletedAt&&ym>=mb.joinDate);
+  });
+  if(!active.length) return null;
+  return active[diff%active.length];
+}
+
+function openWeeklyEdit(ym){
+  window._weeklyYm=ym;
+  const cur=getWeeklyMember(ym);
+  const isChanged=!!ST.weekly[ym];
+  const [y,m]=ym.split('-').map(Number);
+
+  let modal=document.getElementById('weeklyModal');
+  if(!modal){
+    modal=document.createElement('div');
+    modal.id='weeklyModal';
+    modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    document.body.appendChild(modal);
+  }
+
+  // 해당 월 순번 순서대로 정렬 (현재 담당자부터 시작)
+  const [sy,sm]=WEEKLY_START.split('-').map(Number);
+  const diff=(y-sy)*12+(m-sm);
+  const active=WEEKLY_ORDER.filter(name=>{
+    const mb=ST.members.find(x=>x.name===name);
+    return !mb||(mb&&!mb.deletedAt&&ym>=mb.joinDate);
+  });
+  // 이번 달 시작 인덱스
+  const startIdx=diff%active.length;
+  // 시작 인덱스부터 순서대로 정렬
+  const ordered=[...active.slice(startIdx),...active.slice(0,startIdx)];
+  const opts=ordered.map(name=>`<option value="${name}"${name===cur?' selected':''}>${name}</option>`).join('');
+
+  modal.innerHTML=`<div style="background:#fff;border-radius:14px;padding:20px;width:92%;max-width:320px;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div style="font-size:14px;font-weight:700;color:#111">${y}년 ${m}월 Weekly 취합</div>
+      <button onclick="document.getElementById('weeklyModal').style.display='none'" style="background:none;border:none;font-size:22px;cursor:pointer;color:#999;line-height:1">×</button>
+    </div>
+    <div style="font-size:12px;color:#666;margin-bottom:12px">현재: <strong>${cur||'없음'}</strong>${isChanged?' <span style="color:#f59e0b;font-size:10px">(변경됨)</span>':''}</div>
+    <select id="weeklySelect" style="width:100%;font-size:13px;padding:9px;border-radius:8px;border:1px solid #ddd;background:#f9f9f9;color:#111;margin-bottom:14px">${opts}</select>
+    <button onclick="saveWeekly()" style="width:100%;padding:10px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:8px">저장</button>
+    <div style="display:flex;gap:8px">
+      <button onclick="document.getElementById('weeklyModal').style.display='none'" style="flex:1;padding:9px;border-radius:8px;border:1px solid #ddd;background:#f3f4f6;color:#555;font-size:12px;font-weight:600;cursor:pointer">취소</button>
+      ${isChanged?`<button onclick="resetWeekly()" style="flex:1;padding:9px;border-radius:8px;border:1px solid #ddd;background:#f3f4f6;color:#555;font-size:12px;font-weight:600;cursor:pointer">원래대로</button>`:''}
+    </div>
+  </div>`;
+  modal.style.display='flex';
+}
+
+async function saveWeekly(){
+  const ym=window._weeklyYm;
+  const newMember=document.getElementById('weeklySelect').value;
+  const curMember=getWeeklyMember(ym); // 현재 이 달 담당자
+
+  try{
+    if(newMember===curMember){
+      // 변경 없음 - 닫기만
+      document.getElementById('weeklyModal').style.display='none';
+      return;
+    }
+
+    // 이 달을 newMember로 저장
+    await api.setWeekly(ym,newMember);
+
+    // newMember가 원래 담당하는 달 찾기 (순번 기준)
+    const [sy,sm]=WEEKLY_START.split('-').map(Number);
+    const active=WEEKLY_ORDER.filter(name=>{
+      const mb=ST.members.find(x=>x.name===name);
+      return !mb||(mb&&!mb.deletedAt);
+    });
+
+    // 2026-09 ~ 2027-01 범위에서 newMember가 순번상 담당하는 달 찾기
+    const months=['2026-09','2026-10','2026-11','2026-12','2027-01'];
+    for(const otherYm of months){
+      if(otherYm===ym) continue;
+      // otherYm의 순번 담당자 (override 제외한 원래 순번)
+      const [oy,om]=otherYm.split('-').map(Number);
+      const diff=(oy-sy)*12+(om-sm);
+      const autoMember=active[diff%active.length];
+      if(autoMember===newMember){
+        // newMember 원래 달에 curMember를 배정
+        await api.setWeekly(otherYm,curMember);
+        break;
+      }
+    }
+
+    setSS('ok','저장됨');
+    const weekly=await api.getWeekly();
+    ST.weekly={};weekly.forEach(w=>{ST.weekly[w.year_month]=w.member;});
+    document.getElementById('weeklyModal').style.display='none';
+    renderByView();
+  }catch(e){setSS('err','저장 실패');console.error(e);}
+}
+
+async function resetWeekly(){
+  const ym=window._weeklyYm;
+  try{
+    // 이 달의 변경된 담당자가 원래 어느 달 담당인지 찾아서 같이 원복
+    const changedMember=ST.weekly[ym]; // 이 달에 배정된 변경 담당자
+    if(changedMember){
+      const [sy,sm2]=WEEKLY_START.split('-').map(Number);
+      const active=WEEKLY_ORDER.filter(name=>{
+        const mb=ST.members.find(x=>x.name===name);
+        return !mb||(mb&&!mb.deletedAt);
+      });
+      const months=['2026-09','2026-10','2026-11','2026-12','2027-01'];
+      // changedMember가 원래 담당하는 달 찾기
+      for(const otherYm of months){
+        if(otherYm===ym) continue;
+        const [oy,om]=otherYm.split('-').map(Number);
+        const diff=(oy-sy)*12+(om-sm2);
+        const auto=active[diff%active.length];
+        if(auto===changedMember){
+          // 그 달도 원복
+          await api.deleteWeekly(otherYm);
+          break;
+        }
+      }
+    }
+    await api.deleteWeekly(ym);
+    setSS('ok','원래대로');
+    const weekly=await api.getWeekly();
+    ST.weekly={};weekly.forEach(w=>{ST.weekly[w.year_month]=w.member;});
+    document.getElementById('weeklyModal').style.display='none';
+    renderByView();
+  }catch(e){setSS('err','실패');console.error(e);}
+}
+
 function getDtype(ds){
   const d=new Date(ds+'T00:00:00'),dow=d.getDay();
   const nd=nextDs(ds);
@@ -625,8 +767,18 @@ function getDtype(ds){
 function isAbsent(name,ds){return ST.absences.some(a=>a.member===name&&ds>=a.start&&ds<=a.end);}
 function getActiveOrder(ds,dtype){
   const ym=ds.slice(0,7);
-  const order=ORDERS[typeof dtype==='string'?dtype:dtype];
-  return order.filter(n=>{const m=ST.members.find(x=>x.name===n);return m&&!m.deletedAt&&ym>=m.joinDate;});
+  const key=typeof dtype==='string'?dtype:dtype;
+  const order=ORDERS[key]||ORDERS['1a']||[];
+  const filtered=order.filter(n=>{
+    const m=ST.members.find(x=>x.name===n);
+    // ST.members에 없으면 제외, 있으면 deletedAt 없고 joinDate 이전이면 포함
+    return m&&!m.deletedAt&&ym>=m.joinDate;
+  });
+  // 필터 결과가 비면 전체 활성 멤버로 대체 (달력 빈칸 방지)
+  if(filtered.length===0){
+    return ST.members.filter(m=>!m.deletedAt&&ym>=m.joinDate).map(m=>m.name);
+  }
+  return filtered;
 }
 function buildSchedule(y,m){
   if(y<2026||(y===2026&&m<9))return[];
@@ -851,27 +1003,67 @@ function renderCal(){
     </div>`;
   }).join('');
   document.getElementById('memberCount').innerHTML=countHtml;
+
+  // Weekly 자료 취합 배너
+  const ym=`${y}-${String(m).padStart(2,'0')}`;
+  const wMember=getWeeklyMember(ym);
+  let wEl=document.getElementById('weeklyBanner');
+  if(!wEl){
+    wEl=document.createElement('div');
+    wEl.id='weeklyBanner';
+    document.getElementById('memberCount').insertAdjacentElement('afterend',wEl);
+  }
+  if(wMember){
+    const mb=ST.members.find(x=>x.name===wMember);
+    const color=mb?.color||'#6b7280';
+    const tc=mb?.tc||'#111';
+    const isChanged=!!ST.weekly[ym];
+    wEl.innerHTML=`<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg2);border-radius:var(--rs);margin-bottom:10px;border:.5px solid var(--border);flex-wrap:wrap">
+      <span style="font-size:11px;font-weight:600;color:var(--text2);white-space:nowrap">📋 Weekly 취합</span>
+      <div style="display:flex;align-items:center;gap:4px;flex:1;min-width:0">
+        <div style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0"></div>
+        <span style="font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${wMember}</span>
+        ${isChanged?'<span style="font-size:10px;color:var(--blue);white-space:nowrap">(변경)</span>':''}
+      </div>
+      <button onclick="openWeeklyEdit('${ym}')" style="font-size:11px;padding:3px 8px;border-radius:5px;border:.5px solid var(--border);background:var(--bg3);color:var(--text);cursor:pointer;font-weight:600;white-space:nowrap;flex-shrink:0">변경</button>
+    </div>`;
+  } else {
+    wEl.innerHTML='';
+  }
 }
 function renderMembers(){
   const active=ST.members.filter(m=>!m.deletedAt),deleted=ST.members.filter(m=>m.deletedAt);
   let html='';
   active.forEach(mb=>{
     const absent=ST.absences.find(a=>a.member===mb.name&&fmt(new Date())>=a.start&&fmt(new Date())<=a.end);
-    html+=`<div class="member-row"><div class="avatar" style="background:${mb.color};color:${mb.tc}">${mb.name.slice(-2)}</div><div style="flex:1"><div style="font-weight:700;font-size:15px">${mb.name}</div><div style="font-size:13px;color:var(--text3)">${mb.joinDate} 합류</div></div>${absent?`<span class="badge badge-absent">${absent.reason}</span>`:`<span class="badge badge-active">재직중</span>`}<button class="btn btn-danger btn-xs" onclick="deleteMember('${mb.name}')">삭제</button></div>`;
+    html+=`<div class="member-row"><div class="avatar" style="background:${mb.color};width:10px;height:10px;border-radius:50%;flex-shrink:0"></div><div style="flex:1"><div style="font-weight:700;font-size:15px">${mb.name}</div></div>${absent?`<span class="badge badge-absent">${absent.reason}</span>`:`<span class="badge badge-active">재직중</span>`}<button class="btn btn-danger btn-xs" onclick="deleteMember('${mb.name}')">삭제</button></div>`;
   });
   document.getElementById('memberList').innerHTML=html||'<p style="color:var(--text3);font-size:14px">팀원 없음</p>';
-  document.getElementById('absMember').innerHTML=active.map(mb=>`<option>${mb.name}</option>`).join('');
+  document.getElementById('absMember').innerHTML='<option value="">-- 팀원 선택 --</option>'+active.map(mb=>`<option>${mb.name}</option>`).join('');
   const delSec=document.getElementById('deletedSection');
   if(deleted.length>0){
     delSec.style.display='';
     document.getElementById('deletedCount').textContent=`(${deleted.length}명)`;
-    document.getElementById('deletedList').innerHTML=deleted.map(mb=>`<div class="member-row deleted"><div class="avatar" style="background:${mb.color};color:${mb.tc}">${mb.name.slice(-2)}</div><div style="flex:1"><div style="font-weight:700;font-size:15px">${mb.name}</div><div style="font-size:13px;color:var(--text3)">${mb.joinDate} 합류</div></div><span class="badge badge-deleted">삭제됨</span><button class="btn btn-sm" onclick="restoreMember('${mb.name}')">복구</button></div>`).join('');
+    document.getElementById('deletedList').innerHTML=deleted.map(mb=>`<div class="member-row deleted"><div class="avatar" style="background:${mb.color};width:10px;height:10px;border-radius:50%;flex-shrink:0"></div><div style="flex:1"><div style="font-weight:700;font-size:15px">${mb.name}</div></div><span class="badge badge-deleted">삭제됨</span><button class="btn btn-sm" onclick="restoreMember('${mb.name}')">복구</button></div>`).join('');
   }else{delSec.style.display='none';}
+  // 부재 목록 - 수정은 팝업으로
+  const reasons=['휴가','출장','휴직','병가'];
   let ahtml=ST.absences.length?'':`<p style="font-size:14px;color:var(--text3)">등록된 부재 없음</p>`;
   ST.absences.forEach(a=>{
-    ahtml+=`<div class="absence-item" id="abs-${a.id}"><div class="absence-view" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="font-weight:700;min-width:54px">${a.member}</span><span style="color:var(--text2)">${a.start} ~ ${a.end}</span><span style="color:var(--text3)">${a.reason}</span><button class="btn btn-xs" onclick="toggleAbsEdit(${a.id})" style="margin-left:auto">수정</button><button class="btn btn-danger btn-xs" onclick="removeAbsence(${a.id})">삭제</button></div><div class="absence-edit" style="display:none;padding:8px 0 2px;gap:6px;flex-wrap:wrap"><input class="fi" type="date" id="absEs-${a.id}" value="${a.start}" style="width:120px"><span style="font-size:14px">~</span><input class="fi" type="date" id="absEe-${a.id}" value="${a.end}" style="width:120px"><input class="fi" id="absEr-${a.id}" value="${a.reason}" style="width:100px"><button class="btn btn-primary btn-xs" onclick="saveAbsEdit(${a.id})">저장</button><button class="btn btn-xs" onclick="toggleAbsEdit(${a.id})">취소</button></div></div>`;
+    const reasonColor=a.reason==='휴직'||a.reason==='병가'?'var(--red)':'var(--text2)';
+    ahtml+=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0;border-bottom:.5px solid var(--border)">
+      <span style="font-weight:700;min-width:54px">${a.member}</span>
+      <span style="color:var(--text2);font-size:13px">${a.start} ~ ${a.end}</span>
+      <span style="color:${reasonColor};font-size:12px;padding:1px 7px;border-radius:4px;background:var(--bg2)">${a.reason}</span>
+      <div style="margin-left:auto;display:flex;gap:6px">
+        <button class="btn btn-xs" onclick="openAbsEdit(${a.id})">수정</button>
+        <button class="btn btn-danger btn-xs" onclick="removeAbsence(${a.id})">삭제</button>
+      </div>
+    </div>`;
   });
   document.getElementById('absenceList').innerHTML=ahtml;
+
+
 }
 function renderHolidays(){
   const el=document.getElementById('viewHolidays');
@@ -1055,9 +1247,22 @@ async function addHolFromPopup(ds){
   }catch(e){setSS('err','추가 실패');console.error(e);}
 }
 
-function closeHolEdit(){
+function closeDtypeModal(){
   document.getElementById('holEditModal').style.display='none';
   window._holEditDs=null;
+}
+// 하위호환
+function closeHolEdit(id){
+  if(id===undefined){closeDtypeModal();return;}
+  const nm=document.getElementById('hn-'+id);
+  const inp=document.getElementById('hni-'+id);
+  const btn=document.getElementById('heb-'+id);
+  if(!nm||!inp) return;
+  nm.style.display='';inp.style.display='none';
+  btn.textContent='수정';btn.onclick=()=>toggleHolEdit(id);
+  const cancelBtn=document.getElementById('hcb-'+id);
+  if(cancelBtn) cancelBtn.style.display='none';
+  if(_editingHolId===id) _editingHolId=null;
 }
 
 async function resetHolDtype(){
@@ -1078,7 +1283,6 @@ async function confirmHolDtype(){
   window._holEditDs=null;
 }
 
-function previewHolDtype(ds,val){}
 
 function moveHolMonth(dir){
   if(!window._holY){window._holY=2026;window._holM=9;}
@@ -1122,43 +1326,9 @@ function previewHolDtype(ds, val){
   }
 }
 
-function moveHolMonth(dir){
-  if(!window._holY){window._holY=2026;window._holM=9;}
-  window._holM+=dir;
-  if(window._holM>12){window._holM=1;window._holY++;}
-  if(window._holM<1){window._holM=12;window._holY--;}
-  renderHolidays();
-}
 
-function setHolYear(y){
-  window._holY=parseInt(y);window._holM=1;
-  renderHolidays();
-}
 
-function moveHolMonth(dir){
-  if(!window._holY){window._holY=2026;window._holM=9;}
-  window._holM+=dir;
-  if(window._holM>12){window._holM=1;window._holY++;}
-  if(window._holM<1){window._holM=12;window._holY--;}
-  renderHolidays();
-}
 
-function setHolYear(y){
-  window._holY=parseInt(y);window._holM=1;
-  renderHolidays();
-}
-
-function setHolYear(y){
-  const el=document.getElementById('holYear');
-  if(el) el.value=y;
-  renderHolidays();
-}
-
-function setHolYear(y){
-  const el=document.getElementById('holYear');
-  if(el) el.value=y;
-  renderHolidays();
-}
 
 async function saveHolDtype(id,ds,dtype){
   try{
@@ -1177,7 +1347,7 @@ async function saveHolDtype(id,ds,dtype){
     renderByView();
   }catch(e){setSS('err','저장 실패');console.error('saveHolDtype:',e);}
 }
-function setHolYear(y){holYear=y;renderHolidays();}
+
 let _editingHolId=null;
 function toggleHolEdit(id){
   // 기존 열린 수정창 닫기
@@ -1217,199 +1387,79 @@ async function saveHolEdit(id){
   setSS('syncing','저장 중...');
   try{await api.updateHoliday(id,{name});setSS('ok','저장됨');await loadAll();}catch(e){setSS('err','저장 실패');}
 }
-function renderCompare(){
-  const el=document.getElementById('viewCompare');
 
-  // 순번 데이터 (정적)
-  const OLD={
-    '1a':['신민경','손정모','한수연','이홍연','유시화','조현우','최승훈','신동석'],
-    2:   ['손정모','한수연','이홍연','유시화','조현우','최승훈','신동석','신민경'],
-    5:   ['이홍연','신민경','한수연','최승훈','유시화','손정모','조현우','신동석'],
-    3:   ['최승훈','손정모','신민경','한수연','유시화','이홍연','신동석','조현우'],
-    4:   ['이홍연','손정모','최승훈','신동석','조현우','신민경','한수연','유시화'],
-    6:   ['신동석','이홍연','신민경','한수연','최승훈','유시화','손정모','조현우'],
-  };
-  const NEW_={
-    '1a':['이홍연','유시화','조현우','최승훈','신동석','신민경','손정모','한수연'],
-    2:   ['유시화','조현우','최승훈','신동석','신민경','손정모','한수연','이홍연'],
-    5:   ['조현우','최승훈','신동석','신민경','손정모','한수연','이홍연','유시화'],
-    3:   ['이홍연','유시화','조현우','최승훈','신동석','신민경','손정모','한수연'],
-    4:   ['조현우','최승훈','신동석','신민경','손정모','한수연','이홍연','유시화'],
-    6:   ['유시화','조현우','최승훈','신동석','신민경','손정모','한수연','이홍연'],
-  };
-
-  // 시뮬레이션 결과 (파이썬으로 미리 계산한 정적 값)
-  const MONTHLY_OLD = {
-    '2026-09':{이홍연:5,유시화:2,조현우:1,최승훈:3,신동석:2,신민경:3,손정모:5,한수연:3},
-    '2026-10':{이홍연:2,유시화:2,조현우:4,최승훈:5,신동석:4,신민경:3,손정모:2,한수연:4},
-    '2026-11':{이홍연:4,유시화:4,조현우:2,최승훈:1,신동석:2,신민경:5,손정모:3,한수연:5},
-    '2026-12':{이홍연:3,유시화:5,조현우:5,최승훈:3,신동석:3,신민경:3,손정모:3,한수연:2},
-    '2027-01':{이홍연:4,유시화:3,조현우:3,최승훈:4,신동석:5,신민경:1,손정모:4,한수연:2},
-  };
-  const MONTHLY_NEW = {
-    '2026-09':{이홍연:2,유시화:2,조현우:2,최승훈:4,신동석:4,신민경:3,손정모:3,한수연:4},
-    '2026-10':{이홍연:4,유시화:3,조현우:4,최승훈:4,신동석:4,신민경:3,손정모:2,한수연:2},
-    '2026-11':{이홍연:3,유시화:3,조현우:3,최승훈:2,신동석:3,신민경:4,손정모:5,한수연:3},
-    '2026-12':{이홍연:4,유시화:4,조현우:4,최승훈:4,신동석:3,신민경:2,손정모:2,한수연:4},
-    '2027-01':{이홍연:4,유시화:5,조현우:3,최승훈:2,신동석:2,신민경:4,손정모:3,한수연:3},
-  };
-
-  const MEMBERS=['손정모','신동석','신민경','유시화','이홍연','조현우','최승훈','한수연'];
-  const MONTHS=[['2026-09','9월'],['2026-10','10월'],['2026-11','11월'],['2026-12','12월'],['2027-01','1월']];
-
-  const totalOld={},totalNew={};
-  MEMBERS.forEach(m=>{totalOld[m]=0;totalNew[m]=0;});
-  MONTHS.forEach(([ym])=>{
-    MEMBERS.forEach(m=>{
-      totalOld[m]+=(MONTHLY_OLD[ym]?MONTHLY_OLD[ym][m]||0:0);
-      totalNew[m]+=(MONTHLY_NEW[ym]?MONTHLY_NEW[ym][m]||0:0);
-    });
-  });
-
-  const otArr=MEMBERS.map(m=>totalOld[m]);
-  const ntArr=MEMBERS.map(m=>totalNew[m]);
-  const omxDiff=Math.max(...otArr)-Math.min(...otArr);
-  const nmxDiff=Math.max(...ntArr)-Math.min(...ntArr);
-  const maxT=Math.max(...otArr,...ntArr)||1;
-
-  const typeMeta=[
-    {key:'1a',label:'일요일/휴일',cls:'dt1a'},
-    {key:2,   label:'WF 조간',cls:'dt2'},
-    {key:5,   label:'평일',cls:'dt5'},
-    {key:3,   label:'WF 당직',cls:'dt3'},
-    {key:4,   label:'금요일',cls:'dt4'},
-    {key:6,   label:'휴일 저녁 가판',cls:'dt6'},
-  ];
-
-  function nameSpan(n){return `<span style="font-size:11px;padding:2px 6px;border-radius:3px;background:var(--bg2);display:inline-block;margin:1px">${n}</span>`;}
-
-  el.innerHTML=`
-  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:18px">
-    <div class="stat-card"><div class="stat-label">기존 총합 격차</div><div class="stat-val" style="color:var(--red)">${omxDiff}회</div><div class="stat-sub">${Math.min(...otArr)}~${Math.max(...otArr)}회</div></div>
-    <div class="stat-card"><div class="stat-label">개선 총합 격차</div><div class="stat-val" style="color:var(--green)">${nmxDiff}회</div><div class="stat-sub">${Math.min(...ntArr)}~${Math.max(...ntArr)}회</div></div>
-    <div class="stat-card"><div class="stat-label">개선 효과</div><div class="stat-val">${omxDiff-nmxDiff >= 0 ? (omxDiff-nmxDiff)+'회 ↓' : Math.abs(omxDiff-nmxDiff)+'회 ↑'}</div><div class="stat-sub">총합 기준</div></div>
-  </div>
-
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px">
-    <div>
-      <div class="section-title" style="margin-bottom:10px">5개월 총합 비교</div>
-      <div style="display:flex;gap:12px;margin-bottom:10px;font-size:11px;color:var(--text2)">
-        <span><span style="display:inline-block;width:10px;height:10px;background:#B5D4F4;border-radius:2px;vertical-align:middle;margin-right:4px"></span>기존</span>
-        <span><span style="display:inline-block;width:10px;height:10px;background:#5DCAA5;border-radius:2px;vertical-align:middle;margin-right:4px"></span>개선</span>
-      </div>
-      ${MEMBERS.map(m=>{
-        const o=totalOld[m],n=totalNew[m];
-        return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
-          <div style="min-width:52px;font-size:12px;font-weight:600">${m}</div>
-          <div style="flex:1">
-            <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px">
-              <div style="width:${Math.round(o/maxT*150)}px;height:13px;background:#B5D4F4;border-radius:2px"></div>
-              <span style="font-size:11px;color:var(--text2)">${o}회</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:5px">
-              <div style="width:${Math.round(n/maxT*150)}px;height:13px;background:#5DCAA5;border-radius:2px"></div>
-              <span style="font-size:11px;color:var(--text2)">${n}회</span>
-            </div>
-          </div>
-        </div>`;
-      }).join('')}
-    </div>
-
-    <div>
-      <div class="section-title" style="margin-bottom:10px">월별 편차 비교</div>
-      <div style="display:flex;gap:12px;margin-bottom:10px;font-size:11px;color:var(--text2)">
-        <span><span style="display:inline-block;width:10px;height:10px;background:#B5D4F4;border-radius:2px;vertical-align:middle;margin-right:4px"></span>기존</span>
-        <span><span style="display:inline-block;width:10px;height:10px;background:#5DCAA5;border-radius:2px;vertical-align:middle;margin-right:4px"></span>개선</span>
-      </div>
-      ${MONTHS.map(([ym,label])=>{
-        const ov=MEMBERS.map(m=>MONTHLY_OLD[ym]?MONTHLY_OLD[ym][m]||0:0).filter(v=>v>0);
-        const nv=MEMBERS.map(m=>MONTHLY_NEW[ym]?MONTHLY_NEW[ym][m]||0:0).filter(v=>v>0);
-        const od=ov.length?Math.max(...ov)-Math.min(...ov):0;
-        const nd=nv.length?Math.max(...nv)-Math.min(...nv):0;
-        const maxD=Math.max(od,nd,1);
-        return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <div style="min-width:32px;font-size:12px;font-weight:600">${label}</div>
-          <div style="flex:1">
-            <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px">
-              <div style="width:${Math.round(od/5*130)}px;min-width:4px;height:13px;background:#B5D4F4;border-radius:2px"></div>
-              <span style="font-size:11px;color:var(--text2)">${od}회</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:5px">
-              <div style="width:${Math.round(nd/5*130)}px;min-width:4px;height:13px;background:#5DCAA5;border-radius:2px"></div>
-              <span style="font-size:11px;color:var(--text2)">${nd}회</span>
-              ${nd<od?`<span style="font-size:10px;color:var(--green)">▼${od-nd}</span>`:nd>od?`<span style="font-size:10px;color:var(--red)">▲${nd-od}</span>`:''}
-            </div>
-          </div>
-        </div>`;
-      }).join('')}
-    </div>
-  </div>
-
-  <div class="section-title" style="margin-bottom:8px">유형별 순번 비교</div>
-  <table class="dtable" style="margin-bottom:18px">
-    <thead><tr><th>유형</th><th>기존 순번</th><th>개선 순번</th></tr></thead>
-    <tbody>
-      ${typeMeta.map(({key,label,cls})=>`
-        <tr>
-          <td><span class="badge ${cls}" style="font-size:11px;white-space:nowrap">${label}</span></td>
-          <td style="line-height:2">${(OLD[key]||OLD['1a']).map(nameSpan).join(' ')}</td>
-          <td style="line-height:2">${(NEW_[key]||NEW_['1a']).map(nameSpan).join(' ')}</td>
-        </tr>`).join('')}
-    </tbody>
-  </table>
-
-  <div class="section-title" style="margin-bottom:8px">월별 인당 당직 횟수</div>
-  <div style="overflow-x:auto">
-    <table class="dtable" style="min-width:580px">
-      <thead>
-        <tr>
-          <th style="text-align:left;min-width:80px">월/구분</th>
-          ${MEMBERS.map(m=>`<th>${m.slice(0,2)}</th>`).join('')}
-          <th>편차</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${MONTHS.map(([ym,label])=>{
-          const ov=MEMBERS.map(m=>MONTHLY_OLD[ym]?MONTHLY_OLD[ym][m]||0:0);
-          const nv=MEMBERS.map(m=>MONTHLY_NEW[ym]?MONTHLY_NEW[ym][m]||0:0);
-          const omx=Math.max(...ov),onm=Math.min(...ov.filter(v=>v>0)||[0]);
-          const nmx=Math.max(...nv),nnm=Math.min(...nv.filter(v=>v>0)||[0]);
-          return `
-            <tr>
-              <td style="font-size:11px;color:var(--text2)">${label} 기존</td>
-              ${ov.map(v=>`<td style="background:#EFF6FF;${v===omx?'color:var(--red);font-weight:700':''}">${v}</td>`).join('')}
-              <td style="background:#EFF6FF;font-size:11px;font-weight:600">${omx-onm}</td>
-            </tr>
-            <tr>
-              <td style="font-size:11px;color:var(--text2)">${label} 개선</td>
-              ${nv.map(v=>`<td style="background:#F0FAF4;${v===nmx?'color:var(--red);font-weight:700':''}">${v}</td>`).join('')}
-              <td style="background:#F0FAF4;font-size:11px;font-weight:600">${nmx-nnm}</td>
-            </tr>
-            <tr><td colspan="${MEMBERS.length+2}" style="height:3px;background:var(--bg2);padding:0"></td></tr>`;
-        }).join('')}
-        <tr style="font-weight:700;border-top:1px solid var(--border)">
-          <td>합계 기존</td>
-          ${MEMBERS.map(m=>`<td style="background:#EFF6FF">${totalOld[m]}</td>`).join('')}
-          <td style="background:#EFF6FF;color:var(--red)">${omxDiff}</td>
-        </tr>
-        <tr style="font-weight:700">
-          <td>합계 개선</td>
-          ${MEMBERS.map(m=>`<td style="background:#F0FAF4">${totalNew[m]}</td>`).join('')}
-          <td style="background:#F0FAF4;color:var(--green)">${nmxDiff}</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>`;
-}
 
 function renderOrders(){
-  const info=[{key:'1a',disp:'일요일/휴일',group:'Heavy'},{key:2,disp:'WF 조간',group:'Heavy'},{key:5,disp:'평일',group:'Heavy'},{key:3,disp:'WF 당직',group:'Light'},{key:4,disp:'금요일',group:'Light'},{key:6,disp:'휴일 저녁 가판',group:'Light'}];
-  let rows='';
-  info.forEach(({key,disp,group})=>{
-    const di=DI[key],order=ORDERS[key],idx=typeof key==='string'?SEP_IDX[1]:SEP_IDX[key],sp=order[idx%order.length];
-    rows+=`<tr><td><span class="badge ${di.cls}" style="font-size:13px">${disp}</span></td><td style="font-size:12px;color:var(--text3)">${group}</td><td style="font-weight:700;color:var(--blue)">${sp}</td><td style="color:var(--text3);font-size:13px">${order.join(' → ')}</td></tr>`;
+  const view=document.getElementById('viewOrders');
+  if(!view) return;
+
+  const y=curY||2026, m=curM||9;
+  const ym=`${y}-${String(m).padStart(2,'0')}`;
+
+  // ── 가판 당직 순번 ──
+  const types=[
+    {key:'1a',label:'일요일/휴일',cls:'dt1a',heavy:true},
+    {key:2,label:'WF 조간',cls:'dt2',heavy:true},
+    {key:5,label:'평일',cls:'dt5',heavy:true},
+    {key:3,label:'WF 당직',cls:'dt3',heavy:false},
+    {key:4,label:'금요일',cls:'dt4',heavy:false},
+    {key:6,label:'휴일 저녁 가판',cls:'dt6',heavy:false},
+  ];
+
+  const idx=Object.assign({},SEP_IDX);
+  let c=new Date(2026,8,1);
+  const target=new Date(y,m-1,1);
+  while(c<target){
+    const ds=fmt(c),dtype=getDtype(ds);
+    if(dtype!==null){
+      const ik2=typeof dtype==='string'?1:dtype;
+      if(getActiveOrder(ds,dtype).length>0) idx[ik2]++;
+    }
+    c.setDate(c.getDate()+1);
+  }
+
+  let dutyRows='';
+  types.forEach(t=>{
+    const key=t.key;
+    const ik2=typeof key==='string'?1:key;
+    const order=getActiveOrder(ym+'-01',key);
+    if(!order.length) return;
+    const startI=idx[ik2]%order.length;
+    const sorted=[...order.slice(startI),...order.slice(0,startI)];
+    const names=sorted.map((n,i)=>`<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:4px;background:var(--bg2);font-size:12px;margin:2px">${i===0?'<span style="font-size:10px;color:var(--blue);font-weight:700">1▶</span>':''}<span style="font-weight:${i===0?700:400}">${n}</span></span>`).join('<span style="color:var(--text2);font-size:11px;margin:0 1px">→</span>');
+    dutyRows+=`<tr>
+      <td><span class="badge ${t.cls}" style="font-size:11px;white-space:nowrap">${t.label}</span></td>
+      <td style="font-size:11px;color:var(--text2)">${t.heavy?'가판+조간':'가판만'}</td>
+      <td style="line-height:2.2">${names}</td>
+    </tr>`;
   });
-  document.getElementById('ordersBody').innerHTML=rows;
+
+  // ── Weekly 취합 순번 ──
+  const [sy,sm2]=WEEKLY_START.split('-').map(Number);
+  const active=WEEKLY_ORDER.filter(name=>{
+    const mb=ST.members.find(x=>x.name===name);
+    return !mb||(mb&&!mb.deletedAt&&ym>=mb.joinDate);
+  });
+  const diff=(y-sy)*12+(m-sm2);
+  const startIdx=diff%active.length;
+  const sorted=[...active.slice(startIdx),...active.slice(0,startIdx)];
+  const weeklyNames=sorted.map((n,i)=>`<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:4px;background:var(--bg2);font-size:12px;margin:2px">${i===0?'<span style="font-size:10px;color:var(--blue);font-weight:700">1▶</span>':''}<span style="font-weight:${i===0?700:400}">${n}</span></span>`).join('<span style="color:var(--text2);font-size:11px;margin:0 1px">→</span>');
+
+  view.innerHTML=`
+    <div style="font-size:11px;color:var(--text2);margin-bottom:14px">📅 ${y}년 ${m}월 기준 첫 배정자 순서</div>
+
+    <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;padding-bottom:6px;border-bottom:1.5px solid var(--border)">가판 당직</div>
+    <table class="dtable" style="margin-bottom:24px">
+      <thead><tr><th>유형</th><th>부담</th><th>이번 달 순번</th></tr></thead>
+      <tbody>${dutyRows}</tbody>
+    </table>
+
+    <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;padding-bottom:6px;border-bottom:1.5px solid var(--border)">Weekly 자료 취합</div>
+    <table class="dtable">
+      <tbody>
+        <tr><td style="line-height:2.2;padding:8px;border:none">${weeklyNames}</td></tr>
+      </tbody>
+    </table>`;
 }
 function openEdit(ds){
   const sched=buildSchedule(curY,curM);const s=sched.find(x=>x.date===ds);if(!s)return;
@@ -1516,6 +1566,59 @@ async function restoreMember(name){
   try{await sb('PATCH','members',{deleted_at:null},{'name':'eq.'+name});setSS('ok','복구됨');await loadAll();}
   catch(e){setSS('err','복구 실패');}
 }
+function openAbsEdit(id){
+  const a=ST.absences.find(x=>x.id===id);
+  if(!a) return;
+  let modal=document.getElementById('absEditModal');
+  if(!modal){
+    modal=document.createElement('div');
+    modal.id='absEditModal';
+    modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    document.body.appendChild(modal);
+  }
+  const reasons=['휴가','출장','휴직','병가'];
+  const reasonOpts=reasons.map(r=>`<option value="${r}"${r===a.reason?' selected':''}>${r}</option>`).join('');
+  modal.innerHTML=`<div style="background:#fff;border-radius:14px;padding:20px;width:92%;max-width:360px;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="font-size:15px;font-weight:700;color:#111">${a.member} 부재 수정</div>
+      <button onclick="document.getElementById('absEditModal').style.display='none'" style="background:none;border:none;font-size:22px;cursor:pointer;color:#999">×</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:12px;color:#555;min-width:40px">시작일</span>
+        <input type="date" id="absEditStart" value="${a.start}" style="flex:1;font-size:13px;padding:7px;border-radius:8px;border:1px solid #ddd">
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:12px;color:#555;min-width:40px">종료일</span>
+        <input type="date" id="absEditEnd" value="${a.end}" style="flex:1;font-size:13px;padding:7px;border-radius:8px;border:1px solid #ddd">
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:12px;color:#555;min-width:40px">사유</span>
+        <select id="absEditReason" style="flex:1;font-size:13px;padding:7px;border-radius:8px;border:1px solid #ddd;background:#f9f9f9">${reasonOpts}</select>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button onclick="saveAbsEditNew(${id})" style="flex:2;padding:10px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-size:13px;font-weight:600;cursor:pointer">저장</button>
+      <button onclick="document.getElementById('absEditModal').style.display='none'" style="flex:1;padding:10px;border-radius:8px;border:1px solid #ddd;background:#f3f4f6;color:#555;font-size:12px;font-weight:600;cursor:pointer">취소</button>
+    </div>
+  </div>`;
+  modal.style.display='flex';
+}
+
+async function saveAbsEditNew(id){
+  const start=document.getElementById('absEditStart').value;
+  const end=document.getElementById('absEditEnd').value;
+  const reason=document.getElementById('absEditReason').value;
+  if(!start||!end||start>end) return alert('날짜를 확인해주세요');
+  try{
+    await api.updateAbsence(id,{start_date:start,end_date:end,reason});
+    setSS('ok','저장됨');
+    await loadAll();
+    document.getElementById('absEditModal').style.display='none';
+    renderMembers();
+  }catch(e){setSS('err','저장 실패');console.error(e);}
+}
+
 function toggleAbsEdit(id){
   const el=document.getElementById('abs-'+id);
   const view=el.querySelector('.absence-view'),edit=el.querySelector('.absence-edit');
@@ -1527,17 +1630,39 @@ async function saveAbsEdit(id){
   const reason=document.getElementById('absEr-'+id).value||'부재';
   if(!start||!end||start>end)return alert('날짜를 확인해주세요');
   setSS('syncing','저장 중...');
-  try{await api.updateAbsence(id,{start_date:start,end_date:end,reason});setSS('ok','저장됨');await loadAll();}
+  try{
+    await api.updateAbsence(id,{start_date:start,end_date:end,reason});
+    setSS('ok','저장됨');
+    await loadAll();
+    renderMembers();
+  }
   catch(e){setSS('err','저장 실패');}
 }
 async function addAbsence(){
-  const member=document.getElementById('absMember').value,start=document.getElementById('absStart').value;
-  const end=document.getElementById('absEnd').value,reason=document.getElementById('absReason').value||'부재';
+  const member=document.getElementById('absMember').value;
+  const start=document.getElementById('absStart').value;
+  const end=document.getElementById('absEnd').value;
+  const reason=document.getElementById('absReason').value||'부재';
+  const editId=document.getElementById('absEditId')?.value||'';
+  if(!member)return alert('팀원을 선택해주세요');
   if(!start||!end)return alert('시작일과 종료일을 입력해주세요');
   if(start>end)return alert('시작일이 종료일보다 늦을 수 없습니다');
   setSS('syncing','저장 중...');
-  try{await api.addAbsence({member,start_date:start,end_date:end,reason});setSS('ok','저장됨');await loadAll();document.getElementById('absReason').value='';}
-  catch(e){setSS('err','저장 실패');}
+  try{
+    if(editId){
+      await api.updateAbsence(editId,{member,start_date:start,end_date:end,reason});
+    } else {
+      await api.addAbsence({member,start_date:start,end_date:end,reason});
+    }
+    setSS('ok','저장됨');
+    await loadAll();
+    // 입력값 초기화
+    document.getElementById('absMember').value='';
+    document.getElementById('absStart').value='';
+    document.getElementById('absEnd').value='';
+    renderMembers();
+  }
+  catch(e){setSS('err','저장 실패');console.error(e);}
 }
 async function removeAbsence(id){
   if(!confirm('부재 등록을 삭제하시겠습니까?'))return;
@@ -1569,49 +1694,14 @@ async function removeHoliday(id){
 }
 function setView(v){
   curView=v;
-  ['cal','members','holidays','orders','compare'].forEach(id=>{document.getElementById('view'+id.charAt(0).toUpperCase()+id.slice(1)).style.display=v===id?'':'none';});
-  document.querySelectorAll('.nav-tab').forEach((t,i)=>{t.className='nav-tab'+(['cal','members','holidays','orders','compare'][i]===v?' active':'');});
+  ['cal','members','holidays','orders'].forEach(id=>{document.getElementById('view'+id.charAt(0).toUpperCase()+id.slice(1)).style.display=v===id?'':'none';});
+  document.querySelectorAll('.nav-tab').forEach((t,i)=>{t.className='nav-tab'+(['cal','members','holidays','orders'][i]===v?' active':'');});
   renderByView();
 }
 function renderByView(){if(curView==='cal')renderCal();else if(curView==='members')renderMembers();else if(curView==='holidays')renderHolidays();else if(curView==='orders')renderOrders();}
 function changeMonth(d){curM+=d;if(curM>12){curM=1;curY++;}if(curM<1){curM=12;curY--;}document.getElementById('yearSel').value=curY;document.getElementById('monthSel').value=curM;renderByView();}
 function onDateChange(){curY=parseInt(document.getElementById('yearSel').value);curM=parseInt(document.getElementById('monthSel').value);renderByView();}
-function setOrderVer(useNew){
-  USE_NEW=useNew;
-  ORDERS=USE_NEW?ORDERS_NEW:ORDERS_OLD;
-  SEP_IDX=USE_NEW?SEP_IDX_NEW:SEP_IDX_OLD;
-  document.getElementById('btnNew').style.cssText=useNew?'padding:4px 10px;border-radius:4px;border:none;font-size:11px;font-weight:600;cursor:pointer;background:var(--bg3);box-shadow:var(--sh);color:var(--text);':'padding:4px 10px;border-radius:4px;border:none;font-size:11px;font-weight:600;cursor:pointer;background:none;color:var(--text2);';
-  document.getElementById('btnOld').style.cssText=useNew?'padding:4px 10px;border-radius:4px;border:none;font-size:11px;font-weight:600;cursor:pointer;background:none;color:var(--text2);':'padding:4px 10px;border-radius:4px;border:none;font-size:11px;font-weight:600;cursor:pointer;background:var(--bg3);box-shadow:var(--sh);color:var(--text);';
-  renderByView();
-  if(false){
-    const modal=document.createElement('div');
-    modal.id='holEditModal';
-    modal.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;';
-    modal.innerHTML=`<div style="background:var(--bg);border-radius:14px;padding:22px;width:90%;max-width:340px;box-shadow:0 8px 40px rgba(0,0,0,.3)">
-      <div id="holEditTitle" style="font-size:16px;font-weight:700;margin-bottom:4px"></div>
-      <div id="holEditHolName" style="font-size:12px;color:var(--text2);margin-bottom:16px"></div>
-      <div style="font-size:13px;font-weight:600;margin-bottom:8px">당직 순번 변경</div>
-      <select id="holEditSelect" style="width:100%;font-size:13px;padding:9px;border-radius:8px;border:.5px solid var(--border);background:var(--bg2);color:var(--text);margin-bottom:18px">
-        <option value="">로직대로 (기본값)</option>
-        <option value="1a">일요일/휴일</option>
-        <option value="6">휴일 저녁 가판</option>
-        <option value="4">금요일</option>
-        <option value="5">평일</option>
-        <option value="2">WF 조간</option>
-        <option value="3">WF 당직</option>
-        <option value="null">당직 없음</option>
-      </select>
-      <div style="display:flex;gap:10px">
-        <button id="holCancelBtn" style="flex:1;padding:11px;border-radius:8px;border:.5px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px;font-weight:600;cursor:pointer">취소</button>
-        <button id="holSaveBtn" style="flex:1;padding:11px;border-radius:8px;border:none;background:var(--blue);color:#fff;font-size:13px;font-weight:600;cursor:pointer">저장</button>
-      </div>
-    </div>`;
-    document.body.appendChild(modal);
-    // onclick 대신 addEventListener로 등록 (더 안정적)
-    document.getElementById('holCancelBtn').addEventListener('click',closeHolEdit);
-    document.getElementById('holSaveBtn').addEventListener('click',confirmHolDtype);
-  }
-}
+
 function init(){
   const ySel=document.getElementById('yearSel'),mSel=document.getElementById('monthSel');
   // 2026~2027년 1월까지 지원
@@ -1624,11 +1714,11 @@ init();
 </script>
 
 <!-- 공휴일/당직 수정 팝업 -->
-<div id="holEditModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;" onclick="if(event.target===this)closeHolEdit()">
+<div id="holEditModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;" onclick="if(event.target===this)closeDtypeModal()">
   <div style="background:#fff;border-radius:14px;padding:20px;width:92%;max-width:360px;box-shadow:0 8px 40px rgba(0,0,0,.3);max-height:90vh;overflow-y:auto">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <div id="holEditTitle" style="font-size:16px;font-weight:700;color:#111"></div>
-      <button onclick="closeHolEdit()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#999;line-height:1;padding:0 4px">×</button>
+      <button onclick="closeDtypeModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#999;line-height:1;padding:0 4px">×</button>
     </div>
 
     <!-- 현재 당직 순번 표시 -->
