@@ -945,7 +945,7 @@ function renderCal(){
       cc+=dowCls+(isToday?' today':'');
       let tags='';
       if(s.consec)tags+='<span class="cal-tag cal-warn">⚠ 연속당직</span>';
-      else if(s.autoSwapped&&s.swapWith)tags+=`<span class="cal-tag cal-auto-tag">연속당직교체(${s.swapWith.slice(5)})</span>`;
+      else if(s.autoSwapped&&s.swapWith)tags+=`<span class="cal-tag cal-auto-tag" style="white-space:nowrap;font-size:9px">↔${s.swapWith.slice(5)}</span>`;
       else if(s.swapNote)tags+=`<span class="cal-tag cal-swap-tag">🔄 ${s.swapNote}</span>`;
       else if(s.isOvr)tags+=`<span class="cal-tag cal-mod-tag">✎${s.origMember?' '+s.origMember+'→':''}</span>`;
       h+=`<div class="${cc}" onclick="openEdit('${ds}')"><div class="cal-dn">${d}</div>${holName?`<div class="cal-hol">${holName}</div>`:''}<span class="cal-mb ${di.cls}">${s.member}</span>${tags?`<div style="margin-top:2px">${tags}</div>`:''}</div>`;
@@ -1361,7 +1361,6 @@ function renderOrders(){
   const y=curY||2026, m=curM||9;
   const ym=`${y}-${String(m).padStart(2,'0')}`;
 
-  // ── 가판 당직 순번 ──
   const types=[
     {key:'1a',label:'일요일/휴일',cls:'dt1a',heavy:true},
     {key:2,label:'WF 조간',cls:'dt2',heavy:true},
@@ -1383,6 +1382,21 @@ function renderOrders(){
     c.setDate(c.getDate()+1);
   }
 
+  // 순번을 카드형으로 표시 (모바일 친화적)
+  function makeOrderCards(sorted){
+    return sorted.map((n,i)=>{
+      const mb=ST.members.find(x=>x.name===n);
+      const color=mb?.color||'#e5e7eb';
+      const tc=mb?.tc||'#374151';
+      return `<div style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:var(--bg2);border-radius:6px;border:.5px solid var(--border)">
+        <span style="font-size:11px;color:var(--text2);min-width:18px;font-weight:600">${i+1}</span>
+        <div style="width:7px;height:7px;border-radius:50%;background:${color};flex-shrink:0"></div>
+        <span style="font-size:13px;font-weight:${i===0?700:400};color:var(--text)">${n}</span>
+        ${i===0?'<span style="font-size:10px;color:var(--blue);margin-left:auto;font-weight:600">이번달</span>':''}
+      </div>`;
+    }).join('');
+  }
+
   let dutyRows='';
   types.forEach(t=>{
     const key=t.key;
@@ -1391,15 +1405,16 @@ function renderOrders(){
     if(!order.length) return;
     const startI=idx[ik2]%order.length;
     const sorted=[...order.slice(startI),...order.slice(0,startI)];
-    const names=sorted.map((n,i)=>`<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:4px;background:var(--bg2);font-size:12px;margin:2px">${i===0?'<span style="font-size:10px;color:var(--blue);font-weight:700">1▶</span>':''}<span style="font-weight:${i===0?700:400}">${n}</span></span>`).join('<span style="color:var(--text2);font-size:11px;margin:0 1px">→</span>');
-    dutyRows+=`<tr>
-      <td><span class="badge ${t.cls}" style="font-size:11px;white-space:nowrap">${t.label}</span></td>
-      <td style="font-size:11px;color:var(--text2)">${t.heavy?'가판+조간':'가판만'}</td>
-      <td style="line-height:2.2">${names}</td>
-    </tr>`;
+    dutyRows+=`<div style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span class="badge ${t.cls}" style="font-size:11px;white-space:nowrap">${t.label}</span>
+        <span style="font-size:11px;color:var(--text2)">${t.heavy?'가판+조간':'가판만'}</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">${makeOrderCards(sorted)}</div>
+    </div>`;
   });
 
-  // ── Weekly 취합 순번 ──
+  // Weekly 취합
   const [sy,sm2]=WEEKLY_START.split('-').map(Number);
   const active=WEEKLY_ORDER.filter(name=>{
     const mb=ST.members.find(x=>x.name===name);
@@ -1407,24 +1422,14 @@ function renderOrders(){
   });
   const diff=(y-sy)*12+(m-sm2);
   const startIdx=diff%active.length;
-  const sorted=[...active.slice(startIdx),...active.slice(0,startIdx)];
-  const weeklyNames=sorted.map((n,i)=>`<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:4px;background:var(--bg2);font-size:12px;margin:2px">${i===0?'<span style="font-size:10px;color:var(--blue);font-weight:700">1▶</span>':''}<span style="font-weight:${i===0?700:400}">${n}</span></span>`).join('<span style="color:var(--text2);font-size:11px;margin:0 1px">→</span>');
+  const sortedW=[...active.slice(startIdx),...active.slice(0,startIdx)];
 
   view.innerHTML=`
-    <div style="font-size:11px;color:var(--text2);margin-bottom:14px">📅 ${y}년 ${m}월 기준 첫 배정자 순서</div>
-
-    <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;padding-bottom:6px;border-bottom:1.5px solid var(--border)">가판 당직</div>
-    <table class="dtable" style="margin-bottom:24px">
-      <thead><tr><th>유형</th><th>부담</th><th>이번 달 순번</th></tr></thead>
-      <tbody>${dutyRows}</tbody>
-    </table>
-
-    <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;padding-bottom:6px;border-bottom:1.5px solid var(--border)">Weekly 자료 취합</div>
-    <table class="dtable">
-      <tbody>
-        <tr><td style="line-height:2.2;padding:8px;border:none">${weeklyNames}</td></tr>
-      </tbody>
-    </table>`;
+    <div style="font-size:11px;color:var(--text2);margin-bottom:14px">📅 ${y}년 ${m}월 기준 순번</div>
+    <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px;padding-bottom:6px;border-bottom:1.5px solid var(--border)">가판 당직</div>
+    ${dutyRows}
+    <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px;padding-bottom:6px;border-bottom:1.5px solid var(--border)">Weekly 자료 취합</div>
+    <div style="display:flex;flex-direction:column;gap:4px">${makeOrderCards(sortedW)}</div>`;
 }
 function openEdit(ds){
   const sched=buildSchedule(curY,curM);const s=sched.find(x=>x.date===ds);if(!s)return;
