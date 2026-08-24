@@ -285,15 +285,27 @@ body{font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;ba
 <script>
 const SB_URL='https://djceiwzxuqiekmnpvuqr.supabase.co';
 const SB_KEY='sb_publishable_hxUAqHJCKYyIuFhS-AXBcQ_S05_fSj9';
+function parseDbError(msg){
+  if(!msg) return '저장 중 오류가 발생했어요';
+  try{const j=JSON.parse(msg);msg=j.message||msg;}catch(e){}
+  if(msg.includes('duplicate key')||msg.includes('23505')) return '이미 해당 날짜에 수정 내용이 있어요. 잠시 후 다시 시도해주세요';
+  if(msg.includes('foreign key')||msg.includes('23503')) return '존재하지 않는 데이터예요';
+  if(msg.includes('not null')||msg.includes('23502')) return '필수 항목이 비어있어요';
+  if(msg.includes('network')||msg.includes('fetch')) return '네트워크 연결을 확인해주세요';
+  if(msg.includes('JWT')||msg.includes('auth')||msg.includes('401')) return '인증이 만료됐어요. 새로고침 해주세요';
+  if(msg.includes('timeout')||msg.includes('504')) return '서버 응답이 느려요. 잠시 후 다시 시도해주세요';
+  return '저장 중 오류가 발생했어요. 잠시 후 다시 시도해주세요';
+}
+
 async function sb(method,table,body,params,prefer){
   const url=new URL(`${SB_URL}/rest/v1/${table}`);
   if(params)Object.entries(params).forEach(([k,v])=>url.searchParams.set(k,v));
   const h={'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json'};
   if(method==='GET')h['Accept']='application/json';
   if(prefer) h['Prefer']=prefer;
-  else if(method==='POST')h['Prefer']='return=representation';
+  else if(method==='POST') h['Prefer']='return=representation';
   const r=await fetch(url,{method,headers:h,body:body?JSON.stringify(body):undefined});
-  if(!r.ok){const e=await r.text();throw new Error(e);}
+  if(!r.ok){const e=await r.text();throw new Error(parseDbError(e));}
   if(r.status===204)return null;
   return r.json().catch(()=>null);
 }
@@ -305,7 +317,7 @@ const api={
   updateAbsence:(id,d)=>sb('PATCH','absences',d,{'id':'eq.'+id}),
   deleteAbsence:(id)=>sb('DELETE','absences',null,{'id':'eq.'+id}),
   getOverrides:()=>sb('GET','overrides',null,{order:'date.asc'}),
-  upsertOverride:(d)=>sb('POST','overrides',d,{'on_conflict':'date'}),
+  upsertOverride:(d)=>sb('POST','overrides',d,null,'resolution=merge-duplicates,return=minimal'),
   deleteOverride:(date)=>sb('DELETE','overrides',null,{'date':'eq.'+date}),
   updateOverride:(date,d)=>sb('PATCH','overrides',d,{'date':'eq.'+date}),
   getWeekly:()=>sb('GET','weekly_assignments',null,{'order':'year_month.asc'}),
@@ -1485,20 +1497,31 @@ async function saveEdit(){
   setSS('syncing','저장 중...');
   try{
     if(modalTab==='swap'&&swapTargetDate){
-      const s1=buildSchedule(curY,curM).find(x=>x.date===editDate);
-      const s2=buildSchedule(parseInt(swapTargetDate.slice(0,4)),parseInt(swapTargetDate.slice(5,7))).find(x=>x.date===swapTargetDate);
-      if(!s1||!s2)return;
-      const note=`${s2.member}↔${s1.member}`;
-      await Promise.all([api.upsertOverride({date:editDate,member:s2.member,swap_note:note,swap_date:swapTargetDate}),api.upsertOverride({date:swapTargetDate,member:s1.member,swap_note:note,swap_date:editDate})]);
-      ST.overrides[editDate]={member:s2.member,swapNote:note,swapDate:swapTargetDate};
-      ST.overrides[swapTargetDate]={member:s1.member,swapNote:note,swapDate:editDate};
+      // 실제 현재 담당자 가져오기 (override 포함)
+      function getRealMember(date){
+        const ovr=ST.overrides[date];
+        if(ovr&&ovr.member) return ovr.member;
+        const y=parseInt(date.slice(0,4)),m=parseInt(date.slice(5,7));
+        const s=buildSchedule(y,m).find(x=>x.date===date);
+        return s?s.member:null;
+      }
+      const m1=getRealMember(editDate);
+      const m2=getRealMember(swapTargetDate);
+      if(!m1||!m2)return;
+      const note=`${m2}↔${m1}`;
+      await Promise.all([
+        api.upsertOverride({date:editDate,member:m2,swap_note:note,swap_date:swapTargetDate}),
+        api.upsertOverride({date:swapTargetDate,member:m1,swap_note:note,swap_date:editDate})
+      ]);
+      ST.overrides[editDate]={member:m2,swapNote:note,swapDate:swapTargetDate};
+      ST.overrides[swapTargetDate]={member:m1,swapNote:note,swapDate:editDate};
     }else if(modalTab==='change'){
       const sel=document.getElementById('modalSelect').value;if(!editDate||!sel)return;
       await api.upsertOverride({date:editDate,member:sel,swap_note:null,swap_date:null});
       ST.overrides[editDate]={member:sel,swapNote:null,swapDate:null};
     }
     setSS('ok','저장됨');
-  }catch(e){setSS('err','저장 실패');alert('오류: '+e.message);}
+  }catch(e){setSS('err',e.message||'저장 실패');}
   document.getElementById('modalOverlay').style.display='none';editDate=null;swapTargetDate=null;renderByView();
 }
 async function resetEdit(){
