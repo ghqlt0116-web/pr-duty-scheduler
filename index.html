@@ -806,7 +806,7 @@ function buildSchedule(y,m){
         result.push({date:ds,day:d.getDate(),month:m,year:y,dtype,member,
                      isOvr,origMember,swapNote,swapDate,
                      autoSwapped:false,swapWith:null,consec:false,dow:d.getDay()});
-        if(!isOvr) idx[ik2]++; // override된 날은 순번 카운터 소비 안 함
+        idx[ik2]++;
       }
     }
     d.setDate(d.getDate()+1);
