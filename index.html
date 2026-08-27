@@ -1614,19 +1614,30 @@ async function saveEdit(){
       if(!m1||!m2)return;
       const note=`${m2}↔${m1}`;
       const promises=[];
-      // editDate가 autoSwap된 날이면 상대방도 현재 담당자로 먼저 고정
-      const e1=curSchedule.find(x=>x.date===editDate);
-      const e2=curSchedule.find(x=>x.date===swapTargetDate);
-      if(e1&&e1.autoSwapped&&e1.swapWith&&e1.swapWith!==swapTargetDate&&!ST.overrides[e1.swapWith]){
-        const sw=curSchedule.find(x=>x.date===e1.swapWith);
-        if(sw) promises.push(api.upsertOverride({date:e1.swapWith,member:sw.member,swap_note:null,swap_date:null}));
-        if(sw) ST.overrides[e1.swapWith]={member:sw.member,swapNote:null,swapDate:null,overrideDtype:null};
-      }
-      if(e2&&e2.autoSwapped&&e2.swapWith&&e2.swapWith!==editDate&&!ST.overrides[e2.swapWith]){
-        const sw=curSchedule.find(x=>x.date===e2.swapWith);
-        if(sw) promises.push(api.upsertOverride({date:e2.swapWith,member:sw.member,swap_note:null,swap_date:null}));
-        if(sw) ST.overrides[e2.swapWith]={member:sw.member,swapNote:null,swapDate:null,overrideDtype:null};
-      }
+      // editDate, swapTargetDate가 관여된 autoSwap을 모두 찾아서 고정
+      // autoSwapped된 날짜 중 editDate나 swapTargetDate와 같은 member를 가진 날도 포함
+      const toFix=new Set();
+      curSchedule.forEach(s=>{
+        if(!s.autoSwapped) return;
+        // editDate 또는 swapTargetDate와 직접 연결된 날
+        if(s.swapWith===editDate||s.swapWith===swapTargetDate){
+          toFix.add(s.date);
+        }
+        if(s.date===editDate||s.date===swapTargetDate){
+          if(s.swapWith) toFix.add(s.swapWith);
+        }
+      });
+      // 고정 대상에서 교체할 두 날짜 제외하고 override 없는 날만 고정
+      toFix.forEach(d=>{
+        if(d===editDate||d===swapTargetDate) return;
+        if(!ST.overrides[d]){
+          const s=curSchedule.find(x=>x.date===d);
+          if(s){
+            promises.push(api.upsertOverride({date:d,member:s.member,swap_note:null,swap_date:null}));
+            ST.overrides[d]={member:s.member,swapNote:null,swapDate:null,overrideDtype:null};
+          }
+        }
+      });
       promises.push(api.upsertOverride({date:editDate,member:m2,swap_note:note,swap_date:swapTargetDate}));
       promises.push(api.upsertOverride({date:swapTargetDate,member:m1,swap_note:note,swap_date:editDate}));
       await Promise.all(promises);
@@ -1636,17 +1647,21 @@ async function saveEdit(){
       const sel=document.getElementById('modalSelect').value;if(!editDate||!sel)return;
       // ① 저장 전에 현재 스케줄 확인 (캐시 클리어 전)
       const curSchedule=buildScheduleAll();
-      const curEntry=curSchedule.find(x=>x.date===editDate);
       const promises=[];
-      // ② editDate가 autoSwap된 날이면 상대방을 먼저 현재 담당자로 고정
-      if(curEntry&&curEntry.autoSwapped&&curEntry.swapWith){
-        const swapWith=curEntry.swapWith;
-        const swapEntry=curSchedule.find(x=>x.date===swapWith);
-        if(swapEntry&&!ST.overrides[swapWith]){
-          promises.push(api.upsertOverride({date:swapWith,member:swapEntry.member,swap_note:null,swap_date:null}));
-          ST.overrides[swapWith]={member:swapEntry.member,swapNote:null,swapDate:null,overrideDtype:null};
+      // ② editDate와 연결된 autoSwap 날짜 모두 고정
+      curSchedule.forEach(s=>{
+        if(!s.autoSwapped) return;
+        let linkedDate=null;
+        if(s.swapWith===editDate) linkedDate=s.date;
+        else if(s.date===editDate&&s.swapWith) linkedDate=s.swapWith;
+        if(linkedDate&&linkedDate!==editDate&&!ST.overrides[linkedDate]){
+          const ls=curSchedule.find(x=>x.date===linkedDate);
+          if(ls){
+            promises.push(api.upsertOverride({date:linkedDate,member:ls.member,swap_note:null,swap_date:null}));
+            ST.overrides[linkedDate]={member:ls.member,swapNote:null,swapDate:null,overrideDtype:null};
+          }
         }
-      }
+      });
       // ③ editDate 저장
       promises.push(api.upsertOverride({date:editDate,member:sel,swap_note:null,swap_date:null}));
       ST.overrides[editDate]={member:sel,swapNote:null,swapDate:null,overrideDtype:null};
