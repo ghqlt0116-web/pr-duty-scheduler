@@ -356,6 +356,7 @@ function setSS(s,t){
   document.getElementById('syncText').textContent=t;
 }
 async function loadAll(){
+  clearScheduleCache();
   setSS('syncing','로딩 중...');
   try{
     const [members,absences,overrides,holidays]=await Promise.all([api.getMembers(),api.getAbsences(),api.getOverrides(),api.getHolidays()]);
@@ -365,6 +366,7 @@ async function loadAll(){
     overrides.forEach(o=>{ST.overrides[o.date]={member:o.member,swapNote:o.swap_note||null,swapDate:o.swap_date||null,overrideDtype:o.override_dtype||null};});
     ST.holidays=holidays.map(h=>({id:h.id,date:h.date,name:h.name,type:h.type,dtype:h.dtype||null}));
     clearHolCache();
+    clearScheduleCache();
     try{const weekly=await api.getWeekly();ST.weekly={};weekly.forEach(w=>{ST.weekly[w.year_month]=w.member;});}catch(e){}
     setSS('ok','동기화됨');
     renderByView();
@@ -459,7 +461,8 @@ function getSubHolidays(){
   return result;
 }
 
-function clearHolCache(){_subHolCache=null;}
+function clearHolCache(){
+  clearScheduleCache();_subHolCache=null;}
 
 // 창립기념일: 매년 9월 23일
 function isAnniversary(ds){return ds.slice(5)==='09-23';}
@@ -757,24 +760,19 @@ function getActiveOrder(ds,dtype){
   }
   return filtered;
 }
-function buildSchedule(y,m){
-  if(y<2026||(y===2026&&m<9))return[];
-  // SEP_IDX부터 9월 시작까지 소진
+// 전체 스케줄 캐시 (월경계 연속당직 처리를 위해 전체를 한 번에 계산)
+let _scheduleCache=null;
+
+function buildScheduleAll(){
+  if(_scheduleCache) return _scheduleCache;
   const idx=Object.assign({},SEP_IDX);
-  let c=new Date(2026,8,1);const target=new Date(y,m-1,1);
-  while(c<target){
-    const ds=fmt(c),dtype=getDtype(ds);
-    if(dtype!==null){
-      const ik2=typeof dtype==='string'?1:dtype;
-      if(getActiveOrder(ds,dtype).length>0)idx[ik2]++;
-    }
-    c.setDate(c.getDate()+1);
-  }
-  // 당월 스케줄 생성
-  const result=[];
-  const d=new Date(y,m-1,1);
-  while(d.getMonth()===m-1){
+  const allResult=[];
+  // 2026-09 ~ 2027-01 전체 계산
+  const d=new Date(2026,8,1);
+  const endD=new Date(2027,1,1);
+  while(d<endD){
     const ds=fmt(d),dtype=getDtype(ds);
+    const m=d.getMonth()+1,y=d.getFullYear();
     if(dtype!==null){
       const ik2=typeof dtype==='string'?1:dtype;
       const ao=getActiveOrder(ds,dtype);
@@ -782,12 +780,10 @@ function buildSchedule(y,m){
         let member,isOvr=false,origMember=null,swapNote=null,swapDate=null;
         const ovrObj=ST.overrides[ds];
         if(ovrObj&&(typeof ovrObj==='string'||(typeof ovrObj==='object'&&ovrObj.member))){
-          // 담당자 변경이 있는 경우
           member=typeof ovrObj==='object'?ovrObj.member:ovrObj;
           swapNote=ovrObj.swapNote||null;swapDate=ovrObj.swapDate||null;isOvr=true;
           const base=ao[idx[ik2]%ao.length];if(base!==member)origMember=base;
         }else if(ovrObj&&ovrObj.overrideDtype){
-          // override_dtype만 있는 경우 (당직 유형만 변경, 담당자는 순번대로)
           let assigned=null;
           for(let i=0;i<ao.length;i++){
             const cand=ao[(idx[ik2]+i)%ao.length];
@@ -803,16 +799,24 @@ function buildSchedule(y,m){
           }
           member=assigned||ao[idx[ik2]%ao.length];
         }
-        result.push({date:ds,day:d.getDate(),month:m,year:y,dtype,member,
-                     isOvr,origMember,swapNote,swapDate,
-                     autoSwapped:false,swapWith:null,consec:false,dow:d.getDay()});
+        allResult.push({date:ds,day:d.getDate(),month:m,year:y,dtype,member,
+                        isOvr,origMember,swapNote,swapDate,
+                        autoSwapped:false,swapWith:null,consec:false,dow:d.getDay()});
         idx[ik2]++;
       }
     }
     d.setDate(d.getDate()+1);
   }
-  autoSwap(result);
-  return result;
+  autoSwap(allResult);
+  _scheduleCache=allResult;
+  return allResult;
+}
+
+function clearScheduleCache(){_scheduleCache=null;}
+
+function buildSchedule(y,m){
+  if(y<2026||(y===2026&&m<9))return[];
+  return buildScheduleAll().filter(s=>s.year===y&&s.month===m);
 }
 
 function autoSwap(result){
@@ -862,16 +866,18 @@ function autoSwap(result){
     if(i>0&&ik(result[i-1].dtype)===k&&!result[i-1].isOvr) done=safeSwap(result,i,i-1);
     // 바로 뒷날
     if(!done&&i+1<result.length&&ik(result[i+1].dtype)===k&&!result[i+1].isOvr) done=safeSwap(result,i,i+1);
-    // 뒤쪽 확장 (i+2~i+7, isOvr 만나면 중단)
+    // 뒤쪽 확장 (i+2~i+7, isOvr/월경계 만나면 중단)
     if(!done)
       for(let j=i+2;j<Math.min(result.length,i+7)&&!done;j++){
         if(result[j].isOvr) break;
+        if(result[j].month!==s.month) break;
         if(ik(result[j].dtype)===k) done=safeSwap(result,i,j);
       }
-    // 앞쪽 확장 (i-2~i-7, isOvr 만나면 중단)
+    // 앞쪽 확장 (i-2~i-7, isOvr/월경계 만나면 중단)
     if(!done)
       for(let j=i-2;j>=Math.max(0,i-7)&&!done;j--){
         if(result[j].isOvr) break;
+        if(result[j].month!==s.month) break;
         if(ik(result[j].dtype)===k) done=safeSwap(result,i,j);
       }
   }
@@ -892,10 +898,11 @@ function autoSwap(result){
       if(p.dtype===6||c.dtype===6) continue;
       let done=false;
 
-      // 우선순위1: p가 교체 가능 → p를 앞쪽 같은 유형과 교체 (isOvr 만나면 중단)
+      // 우선순위1: p가 교체 가능 → p를 앞쪽 같은 유형과 교체 (isOvr/월경계 만나면 중단)
       if(canSwap(p.dtype)){
         for(let j=i-2;j>=Math.max(0,i-14)&&!done;j--){
           if(result[j].isOvr) break;
+          if(result[j].month!==p.month) break; // 월경계 넘지 않음
           if(ik(result[j].dtype)===ik(p.dtype)){
             done=safeSwap(result,i-1,j);
             if(done) changed=true;
@@ -903,10 +910,11 @@ function autoSwap(result){
         }
       }
 
-      // 우선순위2: p가 NO_SWAP(1a 등) → c를 뒤쪽 같은 유형과 먼저 교체 (isOvr 만나면 중단)
+      // 우선순위2: p가 NO_SWAP(1a 등) → c를 뒤쪽 같은 유형과 먼저 교체 (isOvr/월경계 만나면 중단)
       if(!done&&canSwap(c.dtype)){
         for(let j=i+1;j<Math.min(result.length,i+14)&&!done;j++){
           if(result[j].isOvr) break;
+          if(result[j].month!==c.month) break; // 월경계 넘지 않음
           if(ik(result[j].dtype)===ik(c.dtype)){
             done=safeSwap(result,i,j);
             if(done) changed=true;
@@ -914,10 +922,11 @@ function autoSwap(result){
         }
       }
 
-      // 우선순위3: c를 앞쪽 같은 유형과 교체 (isOvr 만나면 중단)
+      // 우선순위3: c를 앞쪽 같은 유형과 교체 (isOvr/월경계 만나면 중단)
       if(!done&&canSwap(c.dtype)){
         for(let j=i-2;j>=Math.max(0,i-14)&&!done;j--){
           if(result[j].isOvr) break;
+          if(result[j].month!==c.month) break; // 월경계 넘지 않음
           if(ik(result[j].dtype)===ik(c.dtype)){
             done=safeSwap(result,i,j);
             if(done) changed=true;
@@ -1533,7 +1542,7 @@ async function saveEdit(){
       await api.upsertOverride({date:editDate,member:sel,swap_note:null,swap_date:null});
       ST.overrides[editDate]={member:sel,swapNote:null,swapDate:null};
     }
-    setSS('ok','저장됨');
+    clearScheduleCache();setSS('ok','저장됨');
   }catch(e){setSS('err',e.message||'저장 실패');}
   document.getElementById('modalOverlay').style.display='none';editDate=null;swapTargetDate=null;renderByView();
 }
