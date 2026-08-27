@@ -1628,13 +1628,18 @@ async function saveEdit(){
         }
       });
       // 고정 대상에서 교체할 두 날짜 제외하고 override 없는 날만 고정
+      // 고정된 날짜들을 기록 (원래대로 시 연동 삭제용)
+      const fixedDates=[];
       toFix.forEach(d=>{
         if(d===editDate||d===swapTargetDate) return;
         if(!ST.overrides[d]){
           const s=curSchedule.find(x=>x.date===d);
           if(s){
-            promises.push(api.upsertOverride({date:d,member:s.member,swap_note:null,swap_date:null}));
-            ST.overrides[d]={member:s.member,swapNote:null,swapDate:null,overrideDtype:null};
+            // swap_note에 'locked:YYYY-MM-DD' 형식으로 어떤 교체 때문에 고정됐는지 기록
+            const lockNote='locked:'+editDate+','+swapTargetDate;
+            promises.push(api.upsertOverride({date:d,member:s.member,swap_note:lockNote,swap_date:null}));
+            ST.overrides[d]={member:s.member,swapNote:lockNote,swapDate:null,overrideDtype:null};
+            fixedDates.push(d);
           }
         }
       });
@@ -1657,8 +1662,9 @@ async function saveEdit(){
         if(linkedDate&&linkedDate!==editDate&&!ST.overrides[linkedDate]){
           const ls=curSchedule.find(x=>x.date===linkedDate);
           if(ls){
-            promises.push(api.upsertOverride({date:linkedDate,member:ls.member,swap_note:null,swap_date:null}));
-            ST.overrides[linkedDate]={member:ls.member,swapNote:null,swapDate:null,overrideDtype:null};
+            const lockNote='locked:'+editDate;
+            promises.push(api.upsertOverride({date:linkedDate,member:ls.member,swap_note:lockNote,swap_date:null}));
+            ST.overrides[linkedDate]={member:ls.member,swapNote:lockNote,swapDate:null,overrideDtype:null};
           }
         }
       });
@@ -1679,11 +1685,32 @@ async function resetEdit(){
     const swapDate=ovrObj&&typeof ovrObj==='object'?ovrObj.swapDate:null;
     const promises=[api.deleteOverride(editDate)];
     if(swapDate&&ST.overrides[swapDate])promises.push(api.deleteOverride(swapDate));
+    // editDate 또는 swapDate 때문에 locked된 날짜도 함께 삭제
+    Object.entries(ST.overrides).forEach(([d,ovr])=>{
+      if(typeof ovr==='object'&&ovr.swapNote&&ovr.swapNote.startsWith('locked:')){
+        const lockedBy=ovr.swapNote.replace('locked:','').split(',');
+        if(lockedBy.includes(editDate)||(swapDate&&lockedBy.includes(swapDate))){
+          promises.push(api.deleteOverride(d));
+        }
+      }
+    });
     await Promise.all(promises);
-    delete ST.overrides[editDate];if(swapDate)delete ST.overrides[swapDate];
+    delete ST.overrides[editDate];
+    if(swapDate) delete ST.overrides[swapDate];
+    // locked 날짜 메모리에서도 삭제
+    Object.keys(ST.overrides).forEach(d=>{
+      const ovr=ST.overrides[d];
+      if(typeof ovr==='object'&&ovr.swapNote&&ovr.swapNote.startsWith('locked:')){
+        const lockedBy=ovr.swapNote.replace('locked:','').split(',');
+        if(lockedBy.includes(editDate)||(swapDate&&lockedBy.includes(swapDate))){
+          delete ST.overrides[d];
+        }
+      }
+    });
     setSS('ok','복원됨');
   }catch(e){setSS('err','오류');}
-  document.getElementById('modalOverlay').style.display='none';editDate=null;swapTargetDate=null;renderByView();
+  document.getElementById('modalOverlay').style.display='none';editDate=null;swapTargetDate=null;
+  clearScheduleCache();renderByView();
 }
 async function addMember(){
   const name=document.getElementById('newName').value.trim(),joinDate=document.getElementById('newJoin').value;
