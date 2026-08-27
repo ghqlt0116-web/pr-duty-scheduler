@@ -806,7 +806,7 @@ function buildSchedule(y,m){
         result.push({date:ds,day:d.getDate(),month:m,year:y,dtype,member,
                      isOvr,origMember,swapNote,swapDate,
                      autoSwapped:false,swapWith:null,consec:false,dow:d.getDay()});
-        idx[ik2]++;
+        if(!isOvr) idx[ik2]++; // override된 날은 순번 카운터 소비 안 함
       }
     }
     d.setDate(d.getDate()+1);
@@ -840,10 +840,12 @@ function autoSwap(result){
     const in_=i+1<n&&i+1!==j?result[i+1]:null;
     const jp=j>0&&j-1!==i?result[j-1]:null;
     const jn=j+1<n&&j+1!==i?result[j+1]:null;
-    if(ip&&dateDiff(a.date,ip.date)<=1&&ip.member===b.member) return false;
-    if(in_&&dateDiff(in_.date,a.date)<=1&&in_.member===b.member) return false;
-    if(jp&&dateDiff(b.date,jp.date)<=1&&jp.member===a.member) return false;
-    if(jn&&dateDiff(jn.date,b.date)<=1&&jn.member===a.member) return false;
+    // OVR 날짜는 원래 순번 담당자(origMember)로 인접 체크 - 수동교체가 autoSwap 인접조건에 영향 주지 않도록
+    function effMem(s){return s&&s.isOvr&&s.origMember?s.origMember:s?s.member:null;}
+    if(ip&&dateDiff(a.date,ip.date)<=1&&effMem(ip)===b.member) return false;
+    if(in_&&dateDiff(in_.date,a.date)<=1&&effMem(in_)===b.member) return false;
+    if(jp&&dateDiff(b.date,jp.date)<=1&&effMem(jp)===a.member) return false;
+    if(jn&&dateDiff(jn.date,b.date)<=1&&effMem(jn)===a.member) return false;
     const t=a.member;a.member=b.member;b.member=t;
     a.autoSwapped=true;a.swapWith=b.date;
     b.autoSwapped=true;b.swapWith=a.date;
