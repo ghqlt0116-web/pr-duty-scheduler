@@ -44,6 +44,7 @@ body{font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;ba
 .cal-dh.sun{color:#dc2626;}.cal-dh.sat{color:#2563eb;}
 .cal-dc{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:var(--rs);padding:5px 5px 4px;min-height:82px;background:var(--bg3);cursor:pointer;transition:border-color .12s,box-shadow .12s;position:relative;}
 .cal-dc:hover:not(.noduty):not(.empty){border-color:var(--border2);box-shadow:var(--sh);}
+.backup-diff{outline:2px solid #f97316!important;outline-offset:-2px;}
 .cal-dc.empty{background:transparent;border-color:transparent;cursor:default;pointer-events:none;}
 .cal-dc.noduty{background:var(--bg2);border-color:transparent;cursor:default;}
 .cal-dc.noduty:hover{box-shadow:none;}
@@ -194,6 +195,10 @@ body{font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;ba
       <div class="month-label" id="monthLabel"></div>
       <button class="mbtn" onclick="changeMonth(1)">▶</button>
     </div>
+    <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
+      <button id="backupToggleBtn" onclick="toggleBackupView()" style="font-size:11px;padding:3px 10px;border-radius:6px;border:.5px solid var(--border);background:var(--bg2);color:var(--text);cursor:pointer;font-weight:600">원본 비교</button>
+      <button onclick="saveScheduleBackup()" style="font-size:11px;padding:3px 10px;border-radius:6px;border:.5px solid var(--border);background:var(--bg2);color:var(--text);cursor:pointer;font-weight:600">📥 원본 저장</button>
+    </div>
     <div class="legend" id="legend"></div>
     <div id="calNotice"></div>
     <div id="memberCount" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;"></div>
@@ -321,6 +326,8 @@ const api={
   deleteOverride:(date)=>sb('DELETE','overrides',null,{'date':'eq.'+date}),
   updateOverride:(date,d)=>sb('PATCH','overrides',d,{'date':'eq.'+date}),
   getWeekly:()=>sb('GET','weekly_assignments',null,{'order':'year_month.asc'}),
+  getBackup:()=>sb('GET','schedule_backup',null,{'order':'date.asc'}),
+  saveBackup:(rows)=>sb('POST','schedule_backup',rows,null,'resolution=merge-duplicates,return=minimal'),
   setWeekly:(ym,member)=>sb('POST','weekly_assignments',{year_month:ym,member},null,'resolution=merge-duplicates,return=minimal'),
   deleteWeekly:(ym)=>sb('DELETE','weekly_assignments',null,{'year_month':'eq.'+ym}),
   getHolidays:()=>sb('GET','custom_holidays',null,{order:'date.asc'}),
@@ -348,7 +355,7 @@ const CLS_BD={dt1a:'#bfdbfe',dt1b:'#c7d2fe',dt2:'#a7f3d0',dt3:'#bef264',dt4:'#fb
 function getClsBg(cls){return CLS_BG[cls]||'#f3f4f6';}
 function getClsFg(cls){return CLS_FG[cls]||'#374151';}
 function getClsBd(cls){return CLS_BD[cls]||'#d1d5db';}
-let ST={members:[],absences:[],overrides:{},holidays:[],weekly:{}};
+let ST={members:[],absences:[],overrides:{},holidays:[],weekly:{},backup:{}};
 let curY=2026,curM=9,curView='cal',editDate=null,modalTab='swap';
 let swapY=2026,swapM=9,swapTargetDate=null,holYear=2026;
 function setSS(s,t){
@@ -367,6 +374,7 @@ async function loadAll(){
     ST.holidays=holidays.map(h=>({id:h.id,date:h.date,name:h.name,type:h.type,dtype:h.dtype||null}));
     clearHolCache();
     clearScheduleCache();
+    try{const backup=await api.getBackup();ST.backup={};backup.forEach(b=>{ST.backup[b.date]={member:b.member,dtype:b.dtype};});}catch(e){}
     try{const weekly=await api.getWeekly();ST.weekly={};weekly.forEach(w=>{ST.weekly[w.year_month]=w.member;});}catch(e){}
     setSS('ok','동기화됨');
     renderByView();
@@ -659,6 +667,65 @@ async function resetWeekly(){
     document.getElementById('weeklyModal').style.display='none';
     renderByView();
   }catch(e){setSS('err','실패');console.error(e);}
+}
+
+
+// ── 원본 백업 ──
+let _showBackup=false;
+
+async function saveScheduleBackup(){
+  if(!confirm('현재 순수 로직 기준 스케줄을 원본으로 저장할까요?\n(override, autoSwap 모두 제외한 순번대로)')) return;
+  setSS('syncing','백업 저장 중...');
+  try{
+    // 순수 로직 계산 (override, autoSwap 없이)
+    const savedOverrides=ST.overrides;
+    ST.overrides={};
+    clearScheduleCache();
+    // autoSwap 임시 비활성화를 위해 별도 계산
+    const pureResult=buildPureSchedule();
+    ST.overrides=savedOverrides;
+    clearScheduleCache();
+
+    const rows=pureResult.map(s=>({date:s.date,member:s.member,dtype:String(s.dtype)}));
+    await api.saveBackup(rows);
+    const backup=await api.getBackup();
+    ST.backup={};backup.forEach(b=>{ST.backup[b.date]={member:b.member,dtype:b.dtype};});
+    setSS('ok','원본 백업 저장됨');
+  }catch(e){setSS('err','저장 실패');console.error(e);}
+}
+
+function buildPureSchedule(){
+  // override 없이, autoSwap 없이 순수 순번만
+  const idx=Object.assign({},SEP_IDX);
+  const result=[];
+  const d=new Date(2026,8,1);
+  const endD=new Date(2027,2,1);
+  while(d<endD){
+    const ds=fmt(d),dtype=getDtype(ds);
+    const m=d.getMonth()+1,y=d.getFullYear();
+    if(dtype!==null){
+      const ik2=typeof dtype==='string'?1:dtype;
+      const ao=getActiveOrder(ds,dtype);
+      if(ao.length>0){
+        let member=ao[idx[ik2]%ao.length];
+        result.push({date:ds,month:m,year:y,dtype,member});
+        idx[ik2]++;
+      }
+    }
+    d.setDate(d.getDate()+1);
+  }
+  return result;
+}
+
+function toggleBackupView(){
+  _showBackup=!_showBackup;
+  const btn=document.getElementById('backupToggleBtn');
+  if(btn){
+    btn.style.background=_showBackup?'var(--red)':'var(--bg2)';
+    btn.style.color=_showBackup?'#fff':'var(--text)';
+    btn.textContent=_showBackup?'원본 끄기':'원본 비교';
+  }
+  renderCal(curY,curM);
 }
 
 function getDtype(ds){
@@ -982,7 +1049,11 @@ function renderCal(){
       else if(s.autoSwapped&&s.swapWith)tags+=`<span class="cal-tag cal-auto-tag" style="white-space:nowrap;font-size:9px">↔${s.swapWith.slice(5)}</span>`;
       else if(s.swapNote)tags+=`<span class="cal-tag cal-swap-tag">🔄 ${s.swapNote}</span>`;
       else if(s.isOvr)tags+=`<span class="cal-tag cal-mod-tag">✎${s.origMember?' '+s.origMember+'→':''}</span>`;
-      h+=`<div class="${cc}" onclick="openEdit('${ds}')"><div class="cal-dn">${d}</div>${holName?`<div class="cal-hol">${holName}</div>`:''}<span class="cal-mb ${di.cls}">${s.member}</span>${tags?`<div style="margin-top:2px">${tags}</div>`:''}</div>`;
+      const backupInfo=_showBackup&&ST.backup[ds]?ST.backup[ds]:null;
+      const backupDiff=backupInfo&&backupInfo.member!==s.member;
+      h+=`<div class="${cc}${backupDiff?' backup-diff':''}" onclick="openEdit('${ds}')"><div class="cal-dn">${d}</div>${holName?`<div class="cal-hol">${holName}</div>`:''}<span class="cal-mb ${di.cls}">${s.member}</span>${tags?`<div style="margin-top:2px">${tags}</div>`:''}
+      ${backupDiff&&backupInfo?`<div style="font-size:9px;color:#f97316;margin-top:2px;font-weight:600">원본:${backupInfo.member}</div>`:''}
+      </div>`;
     }else{
       h+=`<div class="cal-dc noduty${dowCls}${isToday?' today':''}" ><div class="cal-dn">${d}</div>${holName?`<div class="cal-hol">${holName}</div>`:''}</div>`;
     }
@@ -1539,8 +1610,23 @@ async function saveEdit(){
       ST.overrides[swapTargetDate]={member:m1,swapNote:note,swapDate:editDate};
     }else if(modalTab==='change'){
       const sel=document.getElementById('modalSelect').value;if(!editDate||!sel)return;
-      await api.upsertOverride({date:editDate,member:sel,swap_note:null,swap_date:null});
-      ST.overrides[editDate]={member:sel,swapNote:null,swapDate:null};
+      // ① 저장 전에 현재 스케줄 확인 (캐시 클리어 전)
+      const curSchedule=buildScheduleAll();
+      const curEntry=curSchedule.find(x=>x.date===editDate);
+      const promises=[];
+      // ② editDate가 autoSwap된 날이면 상대방을 먼저 현재 담당자로 고정
+      if(curEntry&&curEntry.autoSwapped&&curEntry.swapWith){
+        const swapWith=curEntry.swapWith;
+        const swapEntry=curSchedule.find(x=>x.date===swapWith);
+        if(swapEntry&&!ST.overrides[swapWith]){
+          promises.push(api.upsertOverride({date:swapWith,member:swapEntry.member,swap_note:null,swap_date:null}));
+          ST.overrides[swapWith]={member:swapEntry.member,swapNote:null,swapDate:null,overrideDtype:null};
+        }
+      }
+      // ③ editDate 저장
+      promises.push(api.upsertOverride({date:editDate,member:sel,swap_note:null,swap_date:null}));
+      ST.overrides[editDate]={member:sel,swapNote:null,swapDate:null,overrideDtype:null};
+      await Promise.all(promises);
     }
     clearScheduleCache();setSS('ok','저장됨');
   }catch(e){setSS('err',e.message||'저장 실패');}
