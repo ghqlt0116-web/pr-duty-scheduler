@@ -826,6 +826,7 @@ function autoSwap(result){
     const a=result[i],b=result[j];
     if(!a||!b) return false;
     if(a.autoSwapped||b.autoSwapped) return false;
+    if(a.isOvr||b.isOvr) return false; // 수동 교체된 날은 autoSwap 대상 제외
     // 둘 다 canSwap이어야 교체 가능
     if(!canSwap(a.dtype)||!canSwap(b.dtype)) return false;
     // 같은 유형끼리만
