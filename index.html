@@ -1059,7 +1059,20 @@ function renderCal(){
       let tags='';
       if(s.consec)tags+='<span class="cal-tag cal-warn">⚠ 연속당직</span>';
       else if(s.autoSwapped&&s.swapWith)tags+=`<span class="cal-tag cal-auto-tag" style="white-space:nowrap;font-size:9px">↔${s.swapWith.slice(5)}</span>`;
-      else if(s.swapNote)tags+=`<span class="cal-tag cal-swap-tag">🔄 ${s.swapNote}</span>`;
+      else if(s.swapNote){
+        if(s.swapNote.startsWith('locked:')){
+          // swap_date에 원래 autoSwap 상대방이 보존돼 있으면 그걸 표시
+          if(s.swapDate){
+            tags+=`<span class="cal-tag cal-auto-tag">↔${s.swapDate.slice(5)}</span>`;
+          } else {
+            const lockedBy=s.swapNote.replace('locked:','').split(',');
+            const label=lockedBy.map(d=>d.slice(5)).join(',');
+            tags+=`<span class="cal-tag cal-swap-tag">🔒 ${label} 연동</span>`;
+          }
+        } else {
+          tags+=`<span class="cal-tag cal-swap-tag">🔄 ${s.swapNote}</span>`;
+        }
+      }
       else if(s.isOvr)tags+=`<span class="cal-tag cal-mod-tag">✎${s.origMember?' '+s.origMember+'→':''}</span>`;
       h+=`<div class="${cc}" onclick="openEdit('${ds}')"><div class="cal-dn">${d}</div>${holName?`<div class="cal-hol">${holName}</div>`:''}<span class="cal-mb ${di.cls}">${s.member}</span>${tags?`<div style="margin-top:2px">${tags}</div>`:''}
       ${backupDiff&&backupInfo?`<div style="font-size:9px;color:#f97316;margin-top:2px;font-weight:600">원본:${backupInfo.member}</div>`:''}
@@ -1636,9 +1649,11 @@ async function saveEdit(){
           const s=curSchedule.find(x=>x.date===d);
           if(s){
             // swap_note에 'locked:YYYY-MM-DD' 형식으로 어떤 교체 때문에 고정됐는지 기록
+            // locked 저장 시 원래 autoSwap 상대방도 swap_date에 보존
             const lockNote='locked:'+editDate+','+swapTargetDate;
-            promises.push(api.upsertOverride({date:d,member:s.member,swap_note:lockNote,swap_date:null}));
-            ST.overrides[d]={member:s.member,swapNote:lockNote,swapDate:null,overrideDtype:null};
+            const origSwapWith=s.swapWith||null;
+            promises.push(api.upsertOverride({date:d,member:s.member,swap_note:lockNote,swap_date:origSwapWith}));
+            ST.overrides[d]={member:s.member,swapNote:lockNote,swapDate:origSwapWith,overrideDtype:null};
             fixedDates.push(d);
           }
         }
@@ -1663,8 +1678,9 @@ async function saveEdit(){
           const ls=curSchedule.find(x=>x.date===linkedDate);
           if(ls){
             const lockNote='locked:'+editDate;
-            promises.push(api.upsertOverride({date:linkedDate,member:ls.member,swap_note:lockNote,swap_date:null}));
-            ST.overrides[linkedDate]={member:ls.member,swapNote:lockNote,swapDate:null,overrideDtype:null};
+            const origSwapWith2=ls.swapWith||null;
+            promises.push(api.upsertOverride({date:linkedDate,member:ls.member,swap_note:lockNote,swap_date:origSwapWith2}));
+            ST.overrides[linkedDate]={member:ls.member,swapNote:lockNote,swapDate:origSwapWith2,overrideDtype:null};
           }
         }
       });
