@@ -857,17 +857,21 @@ function autoSwap(result){
     const k=ik(s.dtype);
     let done=false;
     // 바로 앞날 먼저
-    if(i>0&&ik(result[i-1].dtype)===k) done=safeSwap(result,i,i-1);
+    if(i>0&&ik(result[i-1].dtype)===k&&!result[i-1].isOvr) done=safeSwap(result,i,i-1);
     // 바로 뒷날
-    if(!done&&i+1<result.length&&ik(result[i+1].dtype)===k) done=safeSwap(result,i,i+1);
-    // 뒤쪽 확장 (i+2~i+7)
+    if(!done&&i+1<result.length&&ik(result[i+1].dtype)===k&&!result[i+1].isOvr) done=safeSwap(result,i,i+1);
+    // 뒤쪽 확장 (i+2~i+7, isOvr 만나면 중단)
     if(!done)
-      for(let j=i+2;j<Math.min(result.length,i+7)&&!done;j++)
+      for(let j=i+2;j<Math.min(result.length,i+7)&&!done;j++){
+        if(result[j].isOvr) break;
         if(ik(result[j].dtype)===k) done=safeSwap(result,i,j);
-    // 앞쪽 확장 (i-2~i-7)
+      }
+    // 앞쪽 확장 (i-2~i-7, isOvr 만나면 중단)
     if(!done)
-      for(let j=i-2;j>=Math.max(0,i-7)&&!done;j--)
+      for(let j=i-2;j>=Math.max(0,i-7)&&!done;j--){
+        if(result[j].isOvr) break;
         if(ik(result[j].dtype)===k) done=safeSwap(result,i,j);
+      }
   }
 
   // ── 2단계: 연속당직 교체 (3패스) ──
@@ -886,31 +890,37 @@ function autoSwap(result){
       if(p.dtype===6||c.dtype===6) continue;
       let done=false;
 
-      // 우선순위1: p가 교체 가능 → p를 앞쪽 같은 유형과 교체
+      // 우선순위1: p가 교체 가능 → p를 앞쪽 같은 유형과 교체 (isOvr 만나면 중단)
       if(canSwap(p.dtype)){
-        for(let j=i-2;j>=Math.max(0,i-14)&&!done;j--)
+        for(let j=i-2;j>=Math.max(0,i-14)&&!done;j--){
+          if(result[j].isOvr) break;
           if(ik(result[j].dtype)===ik(p.dtype)){
             done=safeSwap(result,i-1,j);
             if(done) changed=true;
           }
+        }
       }
 
-      // 우선순위2: p가 NO_SWAP(1a 등) → c를 뒤쪽 같은 유형과 먼저 교체
+      // 우선순위2: p가 NO_SWAP(1a 등) → c를 뒤쪽 같은 유형과 먼저 교체 (isOvr 만나면 중단)
       if(!done&&canSwap(c.dtype)){
-        for(let j=i+1;j<Math.min(result.length,i+14)&&!done;j++)
+        for(let j=i+1;j<Math.min(result.length,i+14)&&!done;j++){
+          if(result[j].isOvr) break;
           if(ik(result[j].dtype)===ik(c.dtype)){
             done=safeSwap(result,i,j);
             if(done) changed=true;
           }
+        }
       }
 
-      // 우선순위3: c를 앞쪽 같은 유형과 교체
+      // 우선순위3: c를 앞쪽 같은 유형과 교체 (isOvr 만나면 중단)
       if(!done&&canSwap(c.dtype)){
-        for(let j=i-2;j>=Math.max(0,i-14)&&!done;j--)
+        for(let j=i-2;j>=Math.max(0,i-14)&&!done;j--){
+          if(result[j].isOvr) break;
           if(ik(result[j].dtype)===ik(c.dtype)){
             done=safeSwap(result,i,j);
             if(done) changed=true;
           }
+        }
       }
     }
     if(!changed) break;
