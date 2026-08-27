@@ -695,7 +695,7 @@ async function saveScheduleBackup(){
 }
 
 function buildPureSchedule(){
-  // override 없이, autoSwap 없이 순수 순번만
+  // override 없이, autoSwap 포함 (B 기준 원본)
   const idx=Object.assign({},SEP_IDX);
   const result=[];
   const d=new Date(2026,8,1);
@@ -708,21 +708,30 @@ function buildPureSchedule(){
       const ao=getActiveOrder(ds,dtype);
       if(ao.length>0){
         let member=ao[idx[ik2]%ao.length];
-        result.push({date:ds,month:m,year:y,dtype,member});
+        result.push({date:ds,month:m,year:y,dtype,member,
+                     isOvr:false,origMember:null,swapNote:null,swapDate:null,
+                     autoSwapped:false,swapWith:null,consec:false,dow:new Date(ds+'T00:00:00').getDay()});
         idx[ik2]++;
       }
     }
     d.setDate(d.getDate()+1);
   }
+  autoSwap(result);
   return result;
 }
 
 function toggleBackupView(){
+  // backup 데이터 없으면 안내
+  if(!_showBackup&&Object.keys(ST.backup).length===0){
+    alert('저장된 원본이 없어요.\n📥 원본 저장 버튼을 먼저 눌러주세요.');
+    return;
+  }
   _showBackup=!_showBackup;
   const btn=document.getElementById('backupToggleBtn');
   if(btn){
-    btn.style.background=_showBackup?'var(--red)':'var(--bg2)';
+    btn.style.background=_showBackup?'#dc2626':'var(--bg2)';
     btn.style.color=_showBackup?'#fff':'var(--text)';
+    btn.style.borderColor=_showBackup?'#dc2626':'var(--border)';
     btn.textContent=_showBackup?'원본 끄기':'원본 비교';
   }
   renderCal(curY,curM);
@@ -1044,14 +1053,15 @@ function renderCal(){
       else if(s.swapNote)cc+=' swapped';
       else if(s.isOvr)cc+=' modified';
       cc+=dowCls+(isToday?' today':'');
+      const backupInfo=_showBackup&&ST.backup[ds]?ST.backup[ds]:null;
+      const backupDiff=backupInfo&&backupInfo.member!==s.member;
+      if(backupDiff)cc+=' backup-diff';
       let tags='';
       if(s.consec)tags+='<span class="cal-tag cal-warn">⚠ 연속당직</span>';
       else if(s.autoSwapped&&s.swapWith)tags+=`<span class="cal-tag cal-auto-tag" style="white-space:nowrap;font-size:9px">↔${s.swapWith.slice(5)}</span>`;
       else if(s.swapNote)tags+=`<span class="cal-tag cal-swap-tag">🔄 ${s.swapNote}</span>`;
       else if(s.isOvr)tags+=`<span class="cal-tag cal-mod-tag">✎${s.origMember?' '+s.origMember+'→':''}</span>`;
-      const backupInfo=_showBackup&&ST.backup[ds]?ST.backup[ds]:null;
-      const backupDiff=backupInfo&&backupInfo.member!==s.member;
-      h+=`<div class="${cc}${backupDiff?' backup-diff':''}" onclick="openEdit('${ds}')"><div class="cal-dn">${d}</div>${holName?`<div class="cal-hol">${holName}</div>`:''}<span class="cal-mb ${di.cls}">${s.member}</span>${tags?`<div style="margin-top:2px">${tags}</div>`:''}
+      h+=`<div class="${cc}" onclick="openEdit('${ds}')"><div class="cal-dn">${d}</div>${holName?`<div class="cal-hol">${holName}</div>`:''}<span class="cal-mb ${di.cls}">${s.member}</span>${tags?`<div style="margin-top:2px">${tags}</div>`:''}
       ${backupDiff&&backupInfo?`<div style="font-size:9px;color:#f97316;margin-top:2px;font-weight:600">원본:${backupInfo.member}</div>`:''}
       </div>`;
     }else{
@@ -1590,22 +1600,36 @@ async function saveEdit(){
   setSS('syncing','저장 중...');
   try{
     if(modalTab==='swap'&&swapTargetDate){
+      // 현재 스케줄 확인 (캐시 클리어 전)
+      const curSchedule=buildScheduleAll();
       // 실제 현재 담당자 가져오기 (override 포함)
       function getRealMember(date){
         const ovr=ST.overrides[date];
         if(ovr&&ovr.member) return ovr.member;
-        const y=parseInt(date.slice(0,4)),m=parseInt(date.slice(5,7));
-        const s=buildSchedule(y,m).find(x=>x.date===date);
+        const s=curSchedule.find(x=>x.date===date);
         return s?s.member:null;
       }
       const m1=getRealMember(editDate);
       const m2=getRealMember(swapTargetDate);
       if(!m1||!m2)return;
       const note=`${m2}↔${m1}`;
-      await Promise.all([
-        api.upsertOverride({date:editDate,member:m2,swap_note:note,swap_date:swapTargetDate}),
-        api.upsertOverride({date:swapTargetDate,member:m1,swap_note:note,swap_date:editDate})
-      ]);
+      const promises=[];
+      // editDate가 autoSwap된 날이면 상대방도 현재 담당자로 먼저 고정
+      const e1=curSchedule.find(x=>x.date===editDate);
+      const e2=curSchedule.find(x=>x.date===swapTargetDate);
+      if(e1&&e1.autoSwapped&&e1.swapWith&&e1.swapWith!==swapTargetDate&&!ST.overrides[e1.swapWith]){
+        const sw=curSchedule.find(x=>x.date===e1.swapWith);
+        if(sw) promises.push(api.upsertOverride({date:e1.swapWith,member:sw.member,swap_note:null,swap_date:null}));
+        if(sw) ST.overrides[e1.swapWith]={member:sw.member,swapNote:null,swapDate:null,overrideDtype:null};
+      }
+      if(e2&&e2.autoSwapped&&e2.swapWith&&e2.swapWith!==editDate&&!ST.overrides[e2.swapWith]){
+        const sw=curSchedule.find(x=>x.date===e2.swapWith);
+        if(sw) promises.push(api.upsertOverride({date:e2.swapWith,member:sw.member,swap_note:null,swap_date:null}));
+        if(sw) ST.overrides[e2.swapWith]={member:sw.member,swapNote:null,swapDate:null,overrideDtype:null};
+      }
+      promises.push(api.upsertOverride({date:editDate,member:m2,swap_note:note,swap_date:swapTargetDate}));
+      promises.push(api.upsertOverride({date:swapTargetDate,member:m1,swap_note:note,swap_date:editDate}));
+      await Promise.all(promises);
       ST.overrides[editDate]={member:m2,swapNote:note,swapDate:swapTargetDate};
       ST.overrides[swapTargetDate]={member:m1,swapNote:note,swapDate:editDate};
     }else if(modalTab==='change'){
@@ -1633,7 +1657,8 @@ async function saveEdit(){
   document.getElementById('modalOverlay').style.display='none';editDate=null;swapTargetDate=null;renderByView();
 }
 async function resetEdit(){
-  if(!editDate)return;setSS('syncing','복원 중...');
+  if(!editDate)return;
+  setSS('syncing','복원 중... (수 초 소요될 수 있어요)');
   try{
     const ovrObj=ST.overrides[editDate];
     const swapDate=ovrObj&&typeof ovrObj==='object'?ovrObj.swapDate:null;
