@@ -1938,7 +1938,7 @@ function setView(v){
   document.querySelectorAll('.nav-tab').forEach((t,i)=>{t.className='nav-tab'+(['cal','members','holidays','orders'][i]===v?' active':'');});
   renderByView();
 }
-function renderByView(){if(curView==='cal')renderCal();else if(curView==='members')renderMembers();else if(curView==='holidays')renderHolidays();else if(curView==='orders')renderOrders();}
+function renderByView(){if(curView==='cal')renderCal();else if(curView==='members')renderMembers();else if(curView==='holidays')renderHolidays();else if(curView==='orders')renderOrders();else if(curView==='logs')renderLogs();}
 function changeMonth(d){curM+=d;if(curM>12){curM=1;curY++;}if(curM<1){curM=12;curY--;}document.getElementById('yearSel').value=curY;document.getElementById('monthSel').value=curM;renderByView();}
 function onDateChange(){curY=parseInt(document.getElementById('yearSel').value);curM=parseInt(document.getElementById('monthSel').value);renderByView();}
 
