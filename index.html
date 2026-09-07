@@ -749,8 +749,10 @@ function toggleBackupView(){
 
 
 async function addChangeLog(actionType,targetDate,targetDate2,beforeMember,afterMember,note){
-  try{await api.addLog({action_type:actionType,target_date:targetDate||null,target_date2:targetDate2||null,before_member:beforeMember||null,after_member:afterMember||null,note:note||null});}
-  catch(e){console.error('log:',e);}
+  try{
+    const r=await api.addLog({action_type:actionType,target_date:targetDate||null,target_date2:targetDate2||null,before_member:beforeMember||null,after_member:afterMember||null,note:note||null});
+    console.log('log saved:',actionType,targetDate,r);
+  }catch(e){console.error('log error:',e);}
 }
 
 function getDtype(ds){
@@ -1712,7 +1714,7 @@ async function saveEdit(){
       await Promise.all(promises);
       ST.overrides[editDate]={member:m2,swapNote:note,swapDate:swapTargetDate};
       ST.overrides[swapTargetDate]={member:m1,swapNote:note,swapDate:editDate};
-      addChangeLog('swap',editDate,swapTargetDate,m1,m2,`${editDate}↔${swapTargetDate}`);
+      await addChangeLog('swap',editDate,swapTargetDate,m1,m2,null);
     }else if(modalTab==='change'){
       const sel=document.getElementById('modalSelect').value;if(!editDate||!sel)return;
       // ① 저장 전에 현재 스케줄 확인 (캐시 클리어 전)
@@ -1735,9 +1737,11 @@ async function saveEdit(){
         }
       });
       // ③ editDate 저장
+      const prevMember=curSchedule.find(x=>x.date===editDate)?.member||'';
       promises.push(api.upsertOverride({date:editDate,member:sel,swap_note:null,swap_date:null}));
       ST.overrides[editDate]={member:sel,swapNote:null,swapDate:null,overrideDtype:null};
       await Promise.all(promises);
+      await addChangeLog('change',editDate,null,prevMember,sel,null);
     }
     clearScheduleCache();setSS('ok','저장됨');
   }catch(e){setSS('err',e.message||'저장 실패');}
@@ -1773,7 +1777,7 @@ async function resetEdit(){
         }
       }
     });
-    addChangeLog('reset',editDate,swapDate||null,null,null,`${editDate} 원복`);
+    await addChangeLog('reset',editDate,swapDate||null,null,null,null);
     setSS('ok','복원됨');
   }catch(e){setSS('err','오류');}
   document.getElementById('modalOverlay').style.display='none';editDate=null;swapTargetDate=null;
