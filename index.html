@@ -188,6 +188,7 @@ body{font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;ba
     <button class="nav-tab" onclick="setView('members')">👥 인원</button>
     <button class="nav-tab" onclick="setView('holidays')">🗓 공휴일</button>
     <button class="nav-tab" onclick="setView('orders')">📋 순번</button>
+    <button class="nav-tab" onclick="setView('logs')">📜 이력</button>
   </div>
   <div id="viewCal">
     <div class="month-nav">
@@ -257,6 +258,7 @@ body{font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;ba
     <div id="holContent"></div>
   </div>
   <div id="viewOrders" style="display:none"></div>
+  <div id="viewLogs" style="display:none"></div>
 </div>
 <div class="modal-overlay" id="modalOverlay" style="display:none" onclick="closeModal(event)">
   <div class="modal" onclick="event.stopPropagation()">
@@ -327,6 +329,9 @@ const api={
   updateOverride:(date,d)=>sb('PATCH','overrides',d,{'date':'eq.'+date}),
   getWeekly:()=>sb('GET','weekly_assignments',null,{'order':'year_month.asc'}),
   getBackup:()=>sb('GET','schedule_backup',null,{'order':'date.asc'}),
+  addLog:(d)=>sb('POST','change_log',d,null,'return=minimal'),
+  getLogs:()=>sb('GET','change_log',null,{'order':'created_at.desc','limit':'200'}),
+  deleteOldLogs:()=>sb('DELETE','change_log',null,{'created_at':'lt.'+(new Date(Date.now()-90*24*60*60*1000).toISOString())}),
   saveBackup:(rows)=>sb('POST','schedule_backup',rows,null,'resolution=merge-duplicates,return=minimal'),
   setWeekly:(ym,member)=>sb('POST','weekly_assignments',{year_month:ym,member},null,'resolution=merge-duplicates,return=minimal'),
   deleteWeekly:(ym)=>sb('DELETE','weekly_assignments',null,{'year_month':'eq.'+ym}),
@@ -365,6 +370,11 @@ function setSS(s,t){
 async function loadAll(){
   clearScheduleCache();
   setSS('syncing','로딩 중...');
+  try{
+    const lastClean=localStorage.getItem('lastLogClean');
+    const today=new Date().toDateString();
+    if(lastClean!==today){await api.deleteOldLogs();localStorage.setItem('lastLogClean',today);}
+  }catch(e){}
   try{
     const [members,absences,overrides,holidays]=await Promise.all([api.getMembers(),api.getAbsences(),api.getOverrides(),api.getHolidays()]);
     ST.members=members.map(m=>({name:m.name,color:m.color,tc:m.tc,joinDate:m.join_date,id:m.id,deletedAt:m.deleted_at||null}));
@@ -735,6 +745,12 @@ function toggleBackupView(){
     btn.textContent=_showBackup?'원본 끄기':'원본 비교';
   }
   renderCal(curY,curM);
+}
+
+
+async function addChangeLog(actionType,targetDate,targetDate2,beforeMember,afterMember,note){
+  try{await api.addLog({action_type:actionType,target_date:targetDate||null,target_date2:targetDate2||null,before_member:beforeMember||null,after_member:afterMember||null,note:note||null});}
+  catch(e){console.error('log:',e);}
 }
 
 function getDtype(ds){
@@ -1482,6 +1498,39 @@ async function saveHolEdit(id){
 }
 
 
+
+async function renderLogs(){
+  const el=document.getElementById('viewLogs');
+  if(!el) return;
+  el.innerHTML='<div style="color:var(--text2);font-size:13px">불러오는 중...</div>';
+  try{
+    const logs=await api.getLogs();
+    if(!logs||logs.length===0){
+      el.innerHTML='<div style="color:var(--text2);font-size:13px;padding:20px 0">변경 이력이 없어요</div>';
+      return;
+    }
+    const typeLabel={swap:'교체',change:'담당자 변경',reset:'원복'};
+    const typeColor={swap:'var(--blue)',change:'#10b981',reset:'#f59e0b'};
+    let html='<div style="font-size:13px;font-weight:700;margin-bottom:12px">변경 이력 <span style="font-size:11px;font-weight:400;color:var(--text2)">(최근 90일, 최대 200건)</span></div>';
+    logs.forEach(log=>{
+      const dt=new Date(log.created_at);
+      const dtStr=`${dt.getMonth()+1}/${dt.getDate()} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+      const type=log.action_type;
+      const color=typeColor[type]||'var(--text2)';
+      let desc='';
+      if(type==='swap') desc=`<strong>${log.target_date?.slice(5)||''}</strong> ↔ <strong>${log.target_date2?.slice(5)||''}</strong> 교체`;
+      else if(type==='change') desc=`<strong>${log.target_date?.slice(5)||''}</strong> ${log.before_member||'?'} → ${log.after_member||'?'}`;
+      else if(type==='reset') desc=`<strong>${log.target_date?.slice(5)||''}</strong> 원복`;
+      html+=`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:.5px solid var(--border)">
+        <span style="font-size:11px;color:var(--text2);white-space:nowrap;min-width:70px">${dtStr}</span>
+        <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:${color}20;color:${color};font-weight:600;white-space:nowrap">${typeLabel[type]||type}</span>
+        <span style="font-size:13px;color:var(--text)">${desc}</span>
+      </div>`;
+    });
+    el.innerHTML=html;
+  }catch(e){el.innerHTML='<div style="color:var(--red)">불러오기 실패</div>';}
+}
+
 function renderOrders(){
   const view=document.getElementById('viewOrders');
   if(!view) return;
@@ -1663,6 +1712,7 @@ async function saveEdit(){
       await Promise.all(promises);
       ST.overrides[editDate]={member:m2,swapNote:note,swapDate:swapTargetDate};
       ST.overrides[swapTargetDate]={member:m1,swapNote:note,swapDate:editDate};
+      addChangeLog('swap',editDate,swapTargetDate,m1,m2,`${editDate}↔${swapTargetDate}`);
     }else if(modalTab==='change'){
       const sel=document.getElementById('modalSelect').value;if(!editDate||!sel)return;
       // ① 저장 전에 현재 스케줄 확인 (캐시 클리어 전)
@@ -1723,6 +1773,7 @@ async function resetEdit(){
         }
       }
     });
+    addChangeLog('reset',editDate,swapDate||null,null,null,`${editDate} 원복`);
     setSS('ok','복원됨');
   }catch(e){setSS('err','오류');}
   document.getElementById('modalOverlay').style.display='none';editDate=null;swapTargetDate=null;
@@ -1878,7 +1929,7 @@ async function removeHoliday(id){
 }
 function setView(v){
   curView=v;
-  ['cal','members','holidays','orders'].forEach(id=>{document.getElementById('view'+id.charAt(0).toUpperCase()+id.slice(1)).style.display=v===id?'':'none';});
+  ['cal','members','holidays','orders','logs'].forEach(id=>{document.getElementById('view'+id.charAt(0).toUpperCase()+id.slice(1)).style.display=v===id?'':'none';});
   document.querySelectorAll('.nav-tab').forEach((t,i)=>{t.className='nav-tab'+(['cal','members','holidays','orders'][i]===v?' active':'');});
   renderByView();
 }
