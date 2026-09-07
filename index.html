@@ -1507,6 +1507,7 @@ async function renderLogs(){
   el.innerHTML='<div style="color:var(--text2);font-size:13px">불러오는 중...</div>';
   try{
     const logs=await api.getLogs();
+    console.log('logs fetched:',logs);
     if(!logs||logs.length===0){
       el.innerHTML='<div style="color:var(--text2);font-size:13px;padding:20px 0">변경 이력이 없어요</div>';
       return;
